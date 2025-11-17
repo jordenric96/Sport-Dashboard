@@ -8,11 +8,14 @@ import plotly.io as pio
 CUSTOM_COLORS = [
     '#ed254e',  # --watermelon (Rood/Roze)
     '#f38155',  # --coral-glow (Oranje/Zalm)
-    '#f9dc5c',  # --royal-gold (Geel/Goud)
     '#c2eabd',  # --tea-green (Licht Groen)
     '#011936',  # --prussian-blue (Donker Blauw)
+    '#f9dc5c',  # --royal-gold (Geel/Goud)
 ]
 COLOR_CUMULATIVE = '#ed254e' # Gebruik Watermelon voor de highlight
+
+# Hoogte van Mount Everest in meters voor vergelijking (NIEUW)
+EVEREST_HEIGHT_M = 8848
 
 # Functie om tijd van seconden naar HH:MM:SS formaat te converteren
 def format_time(seconds):
@@ -173,8 +176,7 @@ def genereer_filter_html(unieke_activiteiten, sectie_id):
     </div>
     """
 
-# Nieuwe functie om de GRAND TOTAL kaart voor een jaar of Totaal te genereren (AANGEPAST)
-# Toegevoegd: longest_streak_info (tuple met lengte, start, eind)
+# Nieuwe functie om de GRAND TOTAL kaart voor een jaar of Totaal te genereren (AANGEPAST met Everest Factor)
 def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_streak_info=None): 
     afstand_totaal = f"{row['Totaal_Afstand_km']:.1f} km"
     tijd_totaal = format_time(row['Totaal_Tijd_sec'])
@@ -185,11 +187,16 @@ def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_s
     avg_hr = row.get('Gemiddelde_Hartslag', np.nan)
     avg_hr_html = f'<p class="stat-main-large"><span>Gem. Hartslag:</span> <span class="hr-hidden">{avg_hr:.0f} bpm</span></p>' if pd.notna(avg_hr) and avg_hr > 0 else ''
 
-    # NIEUW: Streak (7) - Alleen voor Totaal Overzicht
+    # Streak
     streak_html = ''
     if longest_streak_info is not None and titel.startswith("Globaal"):
         length, start, end = longest_streak_info
         streak_html = f'<p class="stat-main-large"><span>Langste Streak:</span> {length} weken ({start} t/m {end})</p>'
+        
+    # NIEUW: Everest Factor
+    everest_html = ''
+    if titel.startswith("Globaal") and row.get('Everest_Factor', 0) > 0:
+        everest_html = f'<p class="stat-main-large"><span>Everest Factor:</span> {row["Everest_Factor"]:.2f}x</p>'
 
     html = f"""
     <div class="summary-card-total">
@@ -201,6 +208,7 @@ def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_s
             <p class="stat-main-large"><span>Stijging:</span> {stijging_totaal}</p>
             {avg_hr_html}
             {streak_html}
+            {everest_html}
         </div>
     </div>
     """
@@ -253,11 +261,11 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
         
     if pd.notna(max_avg_speed_row) and max_avg_speed_row > 0:
         if is_ride:
-            label = 'Snelste Gem. Rit' # AANGEPAST
+            label = 'Snelste Gem. Rit' # AANGEPAAST
         elif is_run:
             label = 'Snelste Gem. Loop'
         elif is_walk:
-            label = 'Snelste Gem. Wandeling' # AANGEPAST
+            label = 'Snelste Gem. Wandeling' # AANGEPAAST
         else:
             label = 'Max. Gem. Snelheid'
         stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_avg_speed_row:.1f} km/u</span></p>'
@@ -273,7 +281,7 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
         if pd.notna(max_gewicht) and max_gewicht > 0:
             stats_html += f'<p class="summary-line"><span class="summary-icon">🏋️</span> <span class="summary-label">Max. Gewicht:</span> <span class="summary-value-small">{max_gewicht:,.0f} kg</span></p>'
 
-    # Voorwaardelijke weergave van de hoofdstatistieken (AANGEPAST)
+    # Voorwaardelijke weergave van de hoofdstatistieken (AANGEPAAST)
     main_stats_html = f"""
         <p class="stat-main"><span>Tijd:</span> {tijd_totaal}</p>
     """
@@ -411,7 +419,7 @@ def genereer_records_html(df_records):
     </div>
     """
 
-# Functie om de langste streak te berekenen (AANGEPAST: Berekent nu wekelijkse streak)
+# Functie om de langste *wekelijkse* streak te berekenen
 def calculate_longest_streak(df_data):
     df_dates = df_data['Datum'].dropna().dt.normalize()
     if df_dates.empty:
@@ -424,10 +432,7 @@ def calculate_longest_streak(df_data):
     if df_weeks.empty:
         return 0, '-', '-'
     
-    # Opgeloste logica: Gebruik de numerieke weergave van de Period-index (met 7 dagen per unit)
-    # Dit simuleert de aftrekking van een 'week' timedelta die in de vorige code mislukte.
-    # We trekken de numerieke index (0, 1, 2, ...) af van de week-ordinal.
-    # Period.ordinal geeft het aantal perioden sinds de epoch.
+    # Gebruik de numerieke weergave van de Period-index (ordinal)
     grouped_weeks = df_weeks.astype(int) - df_weeks.index
     
     # Tel de grootte van elke groep om de streak lengte te bepalen
@@ -448,6 +453,45 @@ def calculate_longest_streak(df_data):
     end_date = end_period.end_time.strftime('%d %b %Y')
 
     return longest_length, start_date, end_date
+
+# NIEUWE FUNCTIE: Berekent de langste *inactieve* streak in dagen per jaar (NU MET DATUMS)
+def calculate_longest_inactive_streak(df_data):
+    df_dates = df_data['Datum'].dropna().dt.normalize().unique()
+    
+    if len(df_dates) <= 1:
+        # Als er 0 of 1 activiteit is, is de langste streak 0
+        return 0, '-', '-'
+    
+    df_dates = pd.Series(df_dates).sort_values().reset_index(drop=True)
+    
+    # Bereken het verschil in dagen tussen opeenvolgende activiteiten
+    date_diffs = df_dates.diff().dt.days.dropna()
+    
+    # De maximale kloof minus 1 dag (omdat de startdatum al een actieve dag was)
+    max_diff = date_diffs.max()
+    longest_gap = int(max_diff - 1)
+    
+    if longest_gap <= 0:
+        return 0, '-', '-'
+
+    # Bepaal de index van de grootste kloof (begint bij 1)
+    max_diff_index = date_diffs.idxmax()
+    
+    # De actieve dag vóór de kloof
+    gap_start_active_day = df_dates.iloc[max_diff_index - 1] 
+    
+    # De actieve dag ná de kloof
+    gap_end_active_day = df_dates.iloc[max_diff_index]
+
+    # Inactieve Streak Start Datum (dag na laatste activiteit)
+    inactive_start_date = gap_start_active_day + pd.Timedelta(days=1)
+    # Inactieve Streak Eind Datum (dag voor volgende activiteit)
+    inactive_end_date = gap_end_active_day - pd.Timedelta(days=1)
+
+    start_date_str = inactive_start_date.strftime('%d %b %Y')
+    end_date_str = inactive_end_date.strftime('%d %b %Y')
+    
+    return longest_gap, start_date_str, end_date_str
 
 
 def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dashboard.html'):
@@ -658,6 +702,9 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         'Gemiddelde_Hartslag': [df_clean['Gemiddelde_Hartslag'].mean()],
     })
     
+    # Berekent de Everest Factor
+    agg_alle_jaren['Everest_Factor'] = agg_alle_jaren['Totaal_Stijging_m'] / EVEREST_HEIGHT_M
+    
     unieke_activiteiten = sorted(df_clean['Activiteitstype'].unique())
     
     # --- Longest Streak Berekening (7) ---
@@ -686,7 +733,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         yaxis_title="Totaal Aantal Sessies", 
         # FIX: Forceer de volgorde van de categorische as naar oplopend (2024 vóór 2025)
         xaxis={'type': 'category', 'categoryorder': 'category ascending'}, 
-        # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+        # AANGEPAAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
         margin=dict(t=90, b=20, l=20, r=20),
         legend_title_text='Sport',
         # Legende horizontaal bovenaan
@@ -712,7 +759,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         yaxis_title="Totale Afstand (km)", 
         # FIX: Forceer de volgorde van de categorische as naar oplopend (2024 vóór 2025)
         xaxis={'type': 'category', 'categoryorder': 'category ascending'}, 
-        # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+        # AANGEPAAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
         margin=dict(t=90, b=20, l=20, r=20),
         legend_title_text='Sport',
         # Legende horizontaal bovenaan
@@ -725,7 +772,16 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     fig_afstand_per_jaar.update_traces(textposition='inside', marker_line_width=0)
     
     print("✅ Grafieken gegenereerd.")
+
+    # --- GEEN KALENDER HEATMAP MEER ---
+    df_calendar = df_clean.copy()
+    df_calendar_daily = df_calendar.groupby(df_calendar['Datum'].dt.date)['Afstand_km'].sum().reset_index()
+    df_calendar_daily['Datum'] = pd.to_datetime(df_calendar_daily['Datum'])
     
+    # Map dayofweek (0-6) naar labels voor de y-as (Ma-Zo)
+    day_labels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
+
+
     # --- HTML Genereren ---
 
     # Genereer kaarten voor het totale overzicht
@@ -751,6 +807,10 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     jaar_knoppen_html += '<button class="jaar-knop" onclick="showView(\'HallOfFame\', event)" data-view="HallOfFame">🏆 Records</button>'
 
     for jaar in beschikbare_jaren:
+        
+        # 1. GENERATE CALENDAR HEATMAP FOR CURRENT YEAR (VOORHEEN)
+        calendar_heatmap_html_jaar = "" # Gereset naar leeg, want de plot is verwijderd.
+
         # Data voor samenvattingskaartjes per sport
         df_jaar = agg_jaar[agg_jaar['Jaar'] == jaar].copy()
         # df_clean wordt nu meegegeven
@@ -774,7 +834,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             xaxis_title="Maand", 
             yaxis_title="Aantal Sessies", 
             xaxis={'tickmode': 'array', 'tickvals': df_sessies_jaar['Jaar_Maand'], 'ticktext': df_sessies_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, # Toon maandaanduiding
-            # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+            # AANGEPAAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
             margin=dict(t=90, b=20, l=20, r=20),
             legend_title_text='Sport',
             # Legende horizontaal bovenaan
@@ -798,7 +858,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             xaxis_title="Maand", 
             yaxis_title="Afstand (km)", 
             xaxis={'tickmode': 'array', 'tickvals': df_distance_jaar['Jaar_Maand'], 'ticktext': df_distance_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, 
-            # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+            # AANGEPAAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
             margin=dict(t=90, b=20, l=20, r=20),
             legend_title_text='Sport',
             # Legende horizontaal bovenaan
@@ -811,15 +871,21 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         
         # Max. Gewicht voor dit jaar (Robuuste logica)
         df_gewicht_jaar = agg_jaar_gewicht[agg_jaar_gewicht['Jaar'] == jaar]
-        if not df_gewicht_jaar.empty:
-            max_gewicht_jaar = df_gewicht_jaar['Max_Gewicht'].iloc[0]
-        else:
-            max_gewicht_jaar = np.nan
+        max_gewicht_jaar = df_gewicht_jaar['Max_Gewicht'].iloc[0] if not df_gewicht_jaar.empty else np.nan
             
-        gewicht_html = f'<p><strong>Zwaarste workout (max. getild gewicht):</strong> {max_gewicht_jaar:,.0f} kg</p>' if pd.notna(max_gewicht_jaar) else ''
+        gewicht_html = f'<p><strong>Zwaarste workout (max. getild gewicht):</strong> {max_gewicht_jaar:,.0f} kg</p>' if pd.notna(max_gewicht_jaar) and max_gewicht_jaar > 0 else ''
+        
+        # NIEUW: Bereken de langste inactieve streak voor dit jaar
+        df_detail_jaar = df_clean[df_clean['Jaar'] == jaar]
+        longest_inactive_info = calculate_longest_inactive_streak(df_detail_jaar)
+        days, start_date, end_date = longest_inactive_info
+        
+        if days > 0:
+            inactief_html = f'<p><strong>Langste periode niet gesport:</strong> {days} dagen ({start_date} t/m {end_date})</p>'
+        else:
+            inactief_html = '<p><strong>Langste periode niet gesport:</strong> 0 dagen</p>'
         
         # Genereer de detailtabel voor dit jaar
-        df_detail_jaar = df_clean[df_clean['Jaar'] == jaar]
         filter_jaar_html = genereer_filter_html(unieke_activiteiten, str(jaar))
         jaar_detail_tabel = genereer_detail_tabel_html(df_detail_jaar)
 
@@ -847,7 +913,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 {fig_jaar_afstand_per_maand.to_html(full_html=False, include_plotlyjs='cdn')}
             </div>
             
-            <div class="footer-note">{gewicht_html}</div>
+            <div class="footer-note">{gewicht_html}{inactief_html}</div>
             
             <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">❤️🔒</a>
             {jaar_detail_tabel}
@@ -993,11 +1059,20 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             .chart-full-width .svg-container {{ 
                 width: 100% !important; 
             }}
+            
+            /* NIEUW: Kalender Heatmap container */
+            .calendar-heatmap {{
+                margin-top: 30px;
+            }}
 
             .footer-note {{
                 margin-top: 20px; padding: 10px; border-top: 1px solid var(--almond-silk);
                 font-size: 0.85em; color: var(--text-dark);
+                display: flex; /* Zodat de <p> tags naast elkaar staan */
+                flex-wrap: wrap;
+                gap: 15px;
             }}
+            .footer-note p {{ margin: 0; }}
             
             /* Filter Styling */
             .filter-container {{
@@ -1230,7 +1305,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 }}
             }}
             
-            // AANGEPAST: Deze functie target nu de sportsecties in plaats van individuele rijen.
+            // AANGEPAAST: Deze functie target nu de sportsecties in plaats van individuele rijen.
             function filterDetailTabel(sectie_id) {{
                 const filter = document.getElementById('filter-' + sectie_id);
                 const selected_activity = filter.value;
