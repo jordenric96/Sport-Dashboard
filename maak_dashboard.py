@@ -68,7 +68,7 @@ def get_activity_icon(activity_type):
     else:
         return '✨'
         
-# Functie om de gedetailleerde lijst in HTML te genereren
+# Functie om de gedetailleerde lijst in HTML te genereren (AANGEPAAST: Gegroepeerd per Sport)
 def genereer_detail_tabel_html(df_data):
     if df_data.empty:
         return '<p class="no-data-msg">Geen activiteiten gevonden voor dit overzicht.</p>'
@@ -76,14 +76,14 @@ def genereer_detail_tabel_html(df_data):
     # Sorteer op datum, OUDSTE BOVENAAN
     df_data = df_data.sort_values(by='Datum', ascending=True) 
     
-    html_rows = []
+    unique_sports = sorted(df_data['Activiteitstype'].unique())
+    all_sports_sections = []
     
-    # Aangepaste classes voor responsiviteit
+    # Header voor de mini-tabellen
     header = """
         <thead>
             <tr>
                 <th>Datum</th>
-                <th>Activiteitstype</th>
                 <th class="col-hide-900">Naam Activiteit</th> 
                 <th>Afstand (km)</th>
                 <th class="col-hide-600">Tijd</th>
@@ -95,43 +95,66 @@ def genereer_detail_tabel_html(df_data):
         </thead>
     """
     
-    # Rijen genereren
-    for _, row in df_data.iterrows():
-        datum_str = row['Datum'].strftime('%d %b %Y') if pd.notna(row['Datum']) else '-'
-        activiteit_type_str = row['Activiteitstype'] 
-        activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
-        afstand_str = f"{row['Afstand_km']:.1f}" if pd.notna(row['Afstand_km']) else '-'
-        tijd_str = format_time(row['Beweegtijd_sec'])
-        snelheid_str = f"{row['Gemiddelde_Snelheid_km_u']:.1f}" if pd.notna(row['Gemiddelde_Snelheid_km_u']) and row['Afstand_km'] > 0 else '-'
-        stijging_str = f"{row['Totale_Stijging_m']:.0f}" if pd.notna(row['Totale_Stijging_m']) else '-'
-        hartslag_str = f"{row['Gemiddelde_Hartslag']:.0f}" if pd.notna(row['Gemiddelde_Hartslag']) and row['Gemiddelde_Hartslag'] > 0 else '-'
-        calorieen_str = f"{row['Calorieen']:.0f}" if pd.notna(row['Calorieen']) and row['Calorieen'] > 0 else '-'
+    for sport in unique_sports:
+        df_sport = df_data[df_data['Activiteitstype'] == sport].copy()
+        icon = get_activity_icon(sport)
+        html_rows = []
         
-        # Data-rijen met responsieve classes
-        html_row = f"""
-            <tr data-activity-type="{activiteit_type_str}"> 
-                <td>{datum_str}</td>
-                <td>{activiteit_type_str}</td>
-                <td class="col-hide-900">{activiteit_naam}</td>
-                <td class="num">{afstand_str}</td>
-                <td class="col-hide-600">{tijd_str}</td>
-                <td class="num col-hide-600">{snelheid_str}</td>
-                <td class="num col-hide-750">{stijging_str}</td> 
-                <td class="num hr-hidden col-hide-800">{hartslag_str}</td> 
-                <td class="num col-hide-800">{calorieen_str}</td>
-            </tr>
+        # 1. Sport Header (Gebruik dezelfde styling als de Records)
+        sport_header_html = f"""
+            <div class="record-sport-header detail-group-header">
+                <span class="record-icon-large">{icon}</span>
+                <h3 class="record-sport-title">{sport}</h3>
+            </div>
         """
-        html_rows.append(html_row)
+        
+        # 2. Rows genereren
+        for _, row in df_sport.iterrows():
+            datum_str = row['Datum'].strftime('%d %b %Y') if pd.notna(row['Datum']) else '-'
+            activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
+            afstand_str = f"{row['Afstand_km']:.1f}" if pd.notna(row['Afstand_km']) else '-'
+            tijd_str = format_time(row['Beweegtijd_sec'])
+            snelheid_str = f"{row['Gemiddelde_Snelheid_km_u']:.1f}" if pd.notna(row['Gemiddelde_Snelheid_km_u']) and row['Afstand_km'] > 0 else '-'
+            stijging_str = f"{row['Totale_Stijging_m']:.0f}" if pd.notna(row['Totale_Stijging_m']) else '-'
+            hartslag_str = f"{row['Gemiddelde_Hartslag']:.0f}" if pd.notna(row['Gemiddelde_Hartslag']) and row['Gemiddelde_Hartslag'] > 0 else '-'
+            calorieen_str = f"{row['Calorieen']:.0f}" if pd.notna(row['Calorieen']) and row['Calorieen'] > 0 else '-'
+            
+            # Data-rijen met responsieve classes
+            html_row = f"""
+                <tr data-activity-type="{sport}"> 
+                    <td>{datum_str}</td>
+                    <td class="col-hide-900">{activiteit_naam}</td>
+                    <td class="num">{afstand_str}</td>
+                    <td class="col-hide-600">{tijd_str}</td>
+                    <td class="num col-hide-600">{snelheid_str}</td>
+                    <td class="num col-hide-750">{stijging_str}</td> 
+                    <td class="num hr-hidden col-hide-800">{hartslag_str}</td> 
+                    <td class="num col-hide-800">{calorieen_str}</td>
+                </tr>
+            """
+            html_rows.append(html_row)
+        
+        # 3. Sectie samenstellen
+        # De data-sport attribuut is cruciaal voor de JS filtering.
+        sport_section_html = f"""
+            <div class="sport-detail-section detail-table-container" data-sport="{sport}">
+                {sport_header_html}
+                <table class="activity-table detailed-table-compact">
+                    {header}
+                    <tbody>
+                        {''.join(html_rows)}
+                    </tbody>
+                </table>
+            </div>
+        """
+        all_sports_sections.append(sport_section_html)
         
     return f"""
     <div class="detail-table-container">
         <h2 class="detail-title">Gedetailleerd Overzicht</h2>
-        <table class="activity-table">
-            {header}
-            <tbody>
-                {''.join(html_rows)}
-            </tbody>
-        </table>
+        <div class="detailed-list-sections">
+            {''.join(all_sports_sections)}
+        </div>
     </div>
     """
 
@@ -151,8 +174,8 @@ def genereer_filter_html(unieke_activiteiten, sectie_id):
     """
 
 # Nieuwe functie om de GRAND TOTAL kaart voor een jaar of Totaal te genereren (AANGEPAST)
-# Toegevoegd: longest_streak (7)
-def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_streak=None): 
+# Toegevoegd: longest_streak_info (tuple met lengte, start, eind)
+def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_streak_info=None): 
     afstand_totaal = f"{row['Totaal_Afstand_km']:.1f} km"
     tijd_totaal = format_time(row['Totaal_Tijd_sec'])
     stijging_totaal = f"{row['Totaal_Stijging_m']:.0f} m"
@@ -164,8 +187,9 @@ def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_s
 
     # NIEUW: Streak (7) - Alleen voor Totaal Overzicht
     streak_html = ''
-    if longest_streak is not None and titel.startswith("Globaal"):
-        streak_html = f'<p class="stat-main-large"><span>Streak:</span> {longest_streak} dagen</p>'
+    if longest_streak_info is not None and titel.startswith("Globaal"):
+        length, start, end = longest_streak_info
+        streak_html = f'<p class="stat-main-large"><span>Langste Streak:</span> {length} weken ({start} t/m {end})</p>'
 
     html = f"""
     <div class="summary-card-total">
@@ -207,8 +231,6 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
     
     # Voeg HR toe aan de details
     stats_html += avg_hr_html
-            
-    # OUDE Efficiëntie Score (4) IS VERWIJDERD
             
     if pd.notna(avg_speed) and avg_speed > 0:
         stats_html += f'<p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-label">Gem. Snelheid:</span> <span class="summary-value-small">{avg_speed:.1f} km/u</span></p>'
@@ -283,7 +305,7 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
     """
     return html
 
-# Functie om de HTML voor de Persoonlijke Records tabel te genereren (NIEUW)
+# Functie om de HTML voor de Persoonlijke Records tabel te genereren (AANGEPAAST: Gegroepeerd per Sport)
 def genereer_records_html(df_records):
     # Filter de records om alleen de beste per sport/metriek te tonen
     df_records_filtered = pd.DataFrame()
@@ -315,72 +337,117 @@ def genereer_records_html(df_records):
             df_records_filtered = pd.concat([df_records_filtered, pd.DataFrame([record_watt.to_dict() | {'Record_Type': 'Hoogste Wattage', 'Record_Value': f"{record_watt['Gemiddeld_Wattage']:.0f} W"}])])
         
     if df_records_filtered.empty:
-        return ''
+        return '<p class="no-data-msg">Geen records gevonden voor dit overzicht.</p>'
     
-    # Sorteer om duplicates te groeperen en de tabel netjes te tonen
+    # Sorteer om de sporten netjes te groeperen
     df_records_filtered = df_records_filtered.sort_values(by=['Activiteitstype', 'Record_Type'], ascending=True)
-    df_records_filtered = df_records_filtered.drop_duplicates(subset=['Activiteitstype', 'Record_Type']) # Zorg dat we maar 1 van elk type record per sport hebben
+    df_records_filtered = df_records_filtered.drop_duplicates(subset=['Activiteitstype', 'Record_Type']) 
 
-    html_rows = []
+    unique_sports = sorted(df_records_filtered['Activiteitstype'].unique())
+    all_sports_html = []
     
-    for _, row in df_records_filtered.iterrows():
-        datum_str = row['Datum'].strftime('%d %b %Y')
-        activiteit_type_str = row['Activiteitstype'] 
-        activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
-        
-        # Controleer of Wattage verborgen moet worden (indien HR verborgen is)
-        hr_hidden_class = "hr-hidden" if row['Record_Type'] == 'Intensiefste (Gem. HR)' else ""
-
-        html_row = f"""
-            <tr> 
-                <td>{datum_str}</td>
-                <td>{activiteit_type_str}</td>
-                <td>{row['Record_Type']}</td>
-                <td class="num {hr_hidden_class}">{row['Record_Value']}</td>
-                <td class="col-hide-900">{activiteit_naam}</td>
-            </tr>
-        """
-        html_rows.append(html_row)
-
-    header = """
+    # Definieer de compacte tabel header
+    record_header = """
         <thead>
             <tr>
-                <th>Datum</th>
-                <th>Activiteitstype</th>
                 <th>Record Type</th>
                 <th>Record Waarde</th>
-                <th class="col-hide-900">Naam Activiteit</th> 
+                <th>Datum</th>
+                <th class="col-hide-900">Naam Activiteit</th>
             </tr>
         </thead>
     """
+
+    for sport in unique_sports:
+        df_sport = df_records_filtered[df_records_filtered['Activiteitstype'] == sport].copy()
+        icon = get_activity_icon(sport)
+
+        # 1. Sport Header (Groot en prominent)
+        sport_header_html = f"""
+            <div class="record-sport-header">
+                <span class="record-icon-large">{icon}</span>
+                <h3 class="record-sport-title">{sport}</h3>
+            </div>
+        """
         
+        # 2. Records tabel rijen
+        record_rows = []
+        for _, row in df_sport.iterrows():
+            datum_str = row['Datum'].strftime('%d %b %Y')
+            activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
+            
+            # Controleer of HR verborgen moet worden
+            hr_hidden_class = "hr-hidden" if row['Record_Type'] == 'Intensiefste (Gem. HR)' else ""
+
+            record_rows.append(f"""
+                <tr>
+                    <td>{row['Record_Type']}</td>
+                    <td class="num {hr_hidden_class}">{row['Record_Value']}</td>
+                    <td>{datum_str}</td>
+                    <td class="col-hide-900">{activiteit_naam}</td>
+                </tr>
+            """)
+        
+        # 3. Sectie samenstellen
+        sport_section_html = f"""
+            <div class="record-sport-section">
+                {sport_header_html}
+                <table class="activity-table record-table-compact">
+                    {record_header}
+                    <tbody>
+                        {''.join(record_rows)}
+                    </tbody>
+                </table>
+            </div>
+        """
+        all_sports_html.append(sport_section_html)
+
+    # Wrap the individual sport sections
     return f"""
-    <div class="detail-table-container records-table">
+    <div class="detail-table-container records-hall-of-fame">
         <h2 class="detail-title">🏆 Persoonlijke Records (Hall of Fame)</h2>
-        <table class="activity-table">
-            {header}
-            <tbody>
-                {''.join(html_rows)}
-            </tbody>
-        </table>
+        <p>Dit overzicht toont je beste prestaties ooit voor elke sport in de gearchiveerde data.</p>
+        {''.join(all_sports_html)}
     </div>
     """
 
-# Functie om de langste streak te berekenen (NIEUW) (7)
+# Functie om de langste streak te berekenen (AANGEPAST: Berekent nu wekelijkse streak)
 def calculate_longest_streak(df_data):
-    df_dates = df_data['Datum'].dropna().dt.normalize().unique()
-    if len(df_dates) == 0:
-        return 0
-    df_dates = pd.Series(df_dates).sort_values().reset_index(drop=True)
+    df_dates = df_data['Datum'].dropna().dt.normalize()
+    if df_dates.empty:
+        return 0, '-', '-'
+
+    # Map elke datum naar het begin van de week (PeriodIndex met frequentie W) en neem unieke weken
+    df_weeks = df_dates.dt.to_period('W').unique()
+    df_weeks = pd.Series(df_weeks).sort_values().reset_index(drop=True)
+
+    if df_weeks.empty:
+        return 0, '-', '-'
     
-    # Subtract a series of integers (0, 1, 2, ...) from the dates.
-    # Consecutive dates will have the same result, non-consecutive dates will not.
-    grouped_dates = df_dates - pd.to_timedelta(df_dates.index, unit='D')
+    # Opgeloste logica: Gebruik de numerieke weergave van de Period-index (met 7 dagen per unit)
+    # Dit simuleert de aftrekking van een 'week' timedelta die in de vorige code mislukte.
+    # We trekken de numerieke index (0, 1, 2, ...) af van de week-ordinal.
+    # Period.ordinal geeft het aantal perioden sinds de epoch.
+    grouped_weeks = df_weeks.astype(int) - df_weeks.index
     
-    # Count the size of each group
-    streak_lengths = grouped_dates.value_counts()
+    # Tel de grootte van elke groep om de streak lengte te bepalen
+    streak_info = grouped_weeks.value_counts()
+
+    # Vind de langste streak informatie
+    longest_length = streak_info.max()
+    longest_group_key = streak_info.idxmax()
     
-    return streak_lengths.max() if not streak_lengths.empty else 1
+    # Krijg de Period objecten die behoren tot de langste streak
+    longest_streak_periods = df_weeks[grouped_weeks == longest_group_key]
+
+    start_period = longest_streak_periods.iloc[0]
+    end_period = longest_streak_periods.iloc[-1]
+    
+    # Formatteer de starttijd (maandag) en eindtijd (zondag) van de periodes
+    start_date = start_period.start_time.strftime('%d %b %Y')
+    end_date = end_period.end_time.strftime('%d %b %Y')
+
+    return longest_length, start_date, end_date
 
 
 def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dashboard.html'):
@@ -454,7 +521,13 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # --- Filter om alle sessies mee te tellen ---
     df_clean = df_clean[df_clean['Activiteitstype'].notna()].copy() 
 
-    # Efficiëntie Score (4) is VERWIJDERD, dus die berekening is ook weg.
+    # CORRECTIE: FIX voor zwemafstand (afstand is in meters, moet naar km)
+    mask_zwemmen = df_clean['Activiteitstype'].str.contains('Zwemmen', na=False)
+    if mask_zwemmen.any():
+        # Deel door 1000 om meters naar kilometers om te rekenen
+        df_clean.loc[mask_zwemmen, 'Afstand_km'] = df_clean.loc[mask_zwemmen, 'Afstand_km'] / 1000
+        print('✅ Afstand voor Zwemmen activiteiten gecorrigeerd van meters naar kilometers.')
+
 
     # LET OP: df_clean bevat nu ALLE sporten voor kaarten en tabellen.
     print("✅ Data opgeschoond en voorbewerkt.")
@@ -528,7 +601,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean()),
         Gemiddelde_Hartslag=('Gemiddelde_Hartslag', 'mean'), # Toegevoegd voor kaartjes
         Max_Gemiddelde_Wattage=('Gemiddeld_Wattage', 'max'), # NIEUW (9)
-        # Gemiddelde_Efficientie_Score is VERWIJDERD
     ).reset_index()
     
     agg_jaar['Gemiddelde_Tijd_sec'] = agg_jaar['Totaal_Tijd_sec'] / agg_jaar['Aantal_Activiteiten']
@@ -565,7 +637,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean()),
         Gemiddelde_Hartslag=('Gemiddelde_Hartslag', 'mean'), # Toegevoegd voor kaartjes
         Max_Gemiddelde_Wattage=('Gemiddeld_Wattage', 'max'), # NIEUW (9)
-        # Gemiddelde_Efficientie_Score is VERWIJDERD
     ).reset_index()
     
     agg_totaal['Gemiddelde_Tijd_sec'] = agg_totaal['Totaal_Tijd_sec'] / agg_totaal['Aantal_Activiteiten']
@@ -590,8 +661,9 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     unieke_activiteiten = sorted(df_clean['Activiteitstype'].unique())
     
     # --- Longest Streak Berekening (7) ---
-    longest_streak = calculate_longest_streak(df_clean)
-    print(f"✅ Langste streak berekend: {longest_streak} dagen.")
+    longest_streak_info = calculate_longest_streak(df_clean)
+    length, start, end = longest_streak_info
+    print(f"✅ Langste week streak berekend: {length} weken ({start} t/m {end}).")
     
     # --- Absolute Record Dagen Tabel Data (1, 3-mod, 9) ---
     records_tabel_html = genereer_records_html(df_clean)
@@ -660,7 +732,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     totaal_kaarten_html = "".join(agg_totaal.apply(lambda row: genereer_summary_card_html(row, df_clean, is_totaal=True), axis=1).tolist())
     
     # NIEUW: Genereer de Grand Total kaart voor ALLE jaren (Inclusief Streak)
-    totaal_alle_jaren_kaart_html = genereer_totaal_jaar_card_html(agg_alle_jaren.iloc[0], titel="Globaal Totaal Overzicht", longest_streak=longest_streak)
+    totaal_alle_jaren_kaart_html = genereer_totaal_jaar_card_html(agg_alle_jaren.iloc[0], titel="Globaal Totaal Overzicht", longest_streak_info=longest_streak_info)
 
     # Genereer de detailtabel voor het globale overzicht
     filter_globaal_html = genereer_filter_html(unieke_activiteiten, 'Globaal')
@@ -786,8 +858,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # NIEUWE SECTIE: Hall of Fame (Records)
     hall_of_fame_html = f"""
         <div id="view-HallOfFame" class="jaar-sectie" style="display: none;">
-            <h2>🏆 Persoonlijke Records (Hall of Fame)</h2>
-            <p>Dit overzicht toont je beste prestaties ooit voor elke sport in de gearchiveerde data.</p>
             {records_tabel_html}
              <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">❤️🔒</a>
         </div>
@@ -991,6 +1061,60 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             .no-data-msg {{
                 color: var(--text-dark); font-style: italic; padding: 20px; text-align: center;
             }}
+            
+            /* NIEUWE STIJL: Records en Gedetailleerde Lijst per Sport */
+            .sport-detail-section {{
+                margin-bottom: 30px;
+                padding: 15px;
+                border: 1px solid var(--almond-silk);
+                border-radius: 8px;
+                background-color: #fff;
+            }}
+            .record-sport-header {{
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+                padding-bottom: 5px;
+                border-bottom: 2px solid var(--toffee-brown);
+            }}
+            .record-icon-large {{
+                font-size: 2.5em; /* Grote symbool */
+                margin-right: 15px;
+            }}
+            .record-sport-title {{
+                margin: 0;
+                font-size: 1.8em; /* Grote sportnaam */
+                color: var(--toffee-brown);
+                border-bottom: none;
+                padding-bottom: 0;
+            }}
+            .detailed-table-compact,
+            .record-table-compact {{
+                min-width: unset; /* Laat toe dat de tabel kleiner wordt */
+                margin-top: 0; /* Geen extra marge na de custom header */
+            }}
+            .detailed-list-sections .detailed-table-compact th,
+            .records-hall-of-fame .activity-table th {{
+                background-color: var(--prussian-blue); 
+                font-size: 0.8em;
+                padding: 8px;
+            }}
+
+            /* ** AANGEPASTE ALIGNMENT VOOR RECORDS ** */
+            .records-hall-of-fame .activity-table th,
+            .records-hall-of-fame .activity-table td {{
+                text-align: center !important; /* Forceer centrale uitlijning voor headers en cellen */
+            }}
+            .records-hall-of-fame .activity-table .num {{
+                text-align: center !important; /* Override rechts-uitlijning voor numerieke waarden in Records */
+            }}
+            /* EINDE AANGEPASTE ALIGNMENT */
+
+            /* Verberg de titel in de gedetailleerde lijst, die nu de sport header is */
+            .detail-table-container > .detail-title {{
+                display: none;
+            }}
+
 
             /* Responsieve aanpassingen - Progressieve kolomverbergen */
             /* Belangrijk: De onderstaande media queries werken nog steeds, maar de overflow-x: auto zorgt ervoor dat de scrollbar verschijnt als ze niet allemaal verborgen zijn. */
@@ -1015,6 +1139,10 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 /* Pas de Totaal Kaart aan op kleine schermen */
                 .stats-group-large {{ gap: 10px; }}
                 .stat-main-large {{ flex: 1 1 100%; }}
+                
+                /* Records op mobiel: Maak de sport titel kleiner */
+                .record-icon-large {{ font-size: 2em; }}
+                .record-sport-title {{ font-size: 1.5em; }}
 
             }}
             /* Prioriteit 3: Verberg Stijging op kleinere schermen dan 750px */
@@ -1102,6 +1230,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 }}
             }}
             
+            // AANGEPAST: Deze functie target nu de sportsecties in plaats van individuele rijen.
             function filterDetailTabel(sectie_id) {{
                 const filter = document.getElementById('filter-' + sectie_id);
                 const selected_activity = filter.value;
@@ -1109,18 +1238,16 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 const sectie = document.getElementById('view-' + sectie_id);
                 if (!sectie) return;
 
-                const table = sectie.querySelector('.activity-table');
-                if (!table) return;
+                // Zoek alle sportsecties in de gedetailleerde lijst
+                const sections = sectie.querySelectorAll('.sport-detail-section');
 
-                const rows = table.querySelectorAll('tbody tr');
-
-                rows.forEach(row => {{
-                    const row_activity = row.getAttribute('data-activity-type');
+                sections.forEach(section => {{
+                    const section_activity = section.getAttribute('data-sport');
                     
-                    if (selected_activity === 'ALL' || row_activity === selected_activity) {{
-                        row.style.display = ''; 
+                    if (selected_activity === 'ALL' || section_activity === selected_activity) {{
+                        section.style.display = ''; 
                     }} else {{
-                        row.style.display = 'none'; 
+                        section.style.display = 'none'; 
                     }}
                 }});
             }}
