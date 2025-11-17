@@ -151,7 +151,8 @@ def genereer_filter_html(unieke_activiteiten, sectie_id):
     """
 
 # Nieuwe functie om de GRAND TOTAL kaart voor een jaar of Totaal te genereren (AANGEPAST)
-def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht"):
+# Toegevoegd: longest_streak (7)
+def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht", longest_streak=None): 
     afstand_totaal = f"{row['Totaal_Afstand_km']:.1f} km"
     tijd_totaal = format_time(row['Totaal_Tijd_sec'])
     stijging_totaal = f"{row['Totaal_Stijging_m']:.0f} m"
@@ -160,6 +161,11 @@ def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht"):
     
     avg_hr = row.get('Gemiddelde_Hartslag', np.nan)
     avg_hr_html = f'<p class="stat-main-large"><span>Gem. Hartslag:</span> <span class="hr-hidden">{avg_hr:.0f} bpm</span></p>' if pd.notna(avg_hr) and avg_hr > 0 else ''
+
+    # NIEUW: Streak (7) - Alleen voor Totaal Overzicht
+    streak_html = ''
+    if longest_streak is not None and titel.startswith("Globaal"):
+        streak_html = f'<p class="stat-main-large"><span>Streak:</span> {longest_streak} dagen</p>'
 
     html = f"""
     <div class="summary-card-total">
@@ -170,6 +176,7 @@ def genereer_totaal_jaar_card_html(row, titel="Jaar Totaal Overzicht"):
             <p class="stat-main-large"><span>Tijd:</span> {tijd_totaal}</p>
             <p class="stat-main-large"><span>Stijging:</span> {stijging_totaal}</p>
             {avg_hr_html}
+            {streak_html}
         </div>
     </div>
     """
@@ -201,6 +208,8 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
     # Voeg HR toe aan de details
     stats_html += avg_hr_html
             
+    # OUDE Efficiëntie Score (4) IS VERWIJDERD
+            
     if pd.notna(avg_speed) and avg_speed > 0:
         stats_html += f'<p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-label">Gem. Snelheid:</span> <span class="summary-value-small">{avg_speed:.1f} km/u</span></p>'
             
@@ -230,6 +239,11 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
         else:
             label = 'Max. Gem. Snelheid'
         stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_avg_speed_row:.1f} km/u</span></p>'
+
+    # NIEUW: Max Wattage (9)
+    max_wattage = row.get('Max_Gemiddelde_Wattage', np.nan)
+    if pd.notna(max_wattage) and max_wattage > 0 and is_ride:
+        stats_html += f'<p class="summary-line"><span class="summary-icon">🔌</span> <span class="summary-label">Max. Wattage:</span> <span class="summary-value-small">{max_wattage:.0f} W</span></p>'
             
     # Deze logica had df_clean nodig, wat is opgelost door het door te geven.
     if is_totaal and 'Training' in activiteit:
@@ -268,6 +282,105 @@ def genereer_summary_card_html(row, df_clean, is_totaal=False):
     </div>
     """
     return html
+
+# Functie om de HTML voor de Persoonlijke Records tabel te genereren (NIEUW)
+def genereer_records_html(df_records):
+    # Filter de records om alleen de beste per sport/metriek te tonen
+    df_records_filtered = pd.DataFrame()
+    
+    # Groepeer de activiteiten die aan de criteria voldoen (alleen de beste sessie per record type per sport)
+    for activity_type in df_records['Activiteitstype'].unique():
+        df_act = df_records[df_records['Activiteitstype'] == activity_type]
+        
+        # Max Speed (1)
+        if not df_act.empty and df_act['Gemiddelde_Snelheid_km_u'].max() > 0:
+            record_speed = df_act.loc[df_act['Gemiddelde_Snelheid_km_u'].idxmax()]
+            df_records_filtered = pd.concat([df_records_filtered, pd.DataFrame([record_speed.to_dict() | {'Record_Type': 'Snelste (Gem. Snelheid)', 'Record_Value': f"{record_speed['Gemiddelde_Snelheid_km_u']:.1f} km/u"}])])
+        
+        # Max Distance (1)
+        if not df_act.empty and df_act['Afstand_km'].max() > 0:
+            record_dist = df_act.loc[df_act['Afstand_km'].idxmax()]
+            # Voeg alleen toe als het niet dezelfde is als de Max Speed record (om duplicaten te vermijden)
+            if df_records_filtered.empty or record_dist.name not in df_records_filtered.index or 'Snelste' not in df_records_filtered.loc[record_dist.name, 'Record_Type']:
+                 df_records_filtered = pd.concat([df_records_filtered, pd.DataFrame([record_dist.to_dict() | {'Record_Type': 'Langste Afstand', 'Record_Value': f"{record_dist['Afstand_km']:.1f} km"}])])
+
+        # Max Avg HR (3-mod)
+        if not df_act.empty and df_act['Gemiddelde_Hartslag'].max() > 0:
+            record_hr = df_act.loc[df_act['Gemiddelde_Hartslag'].idxmax()]
+            df_records_filtered = pd.concat([df_records_filtered, pd.DataFrame([record_hr.to_dict() | {'Record_Type': 'Intensiefste (Gem. HR)', 'Record_Value': f"{record_hr['Gemiddelde_Hartslag']:.0f} bpm"}])])
+
+        # Max Wattage (9)
+        if not df_act.empty and df_act['Gemiddeld_Wattage'].max() > 0:
+            record_watt = df_act.loc[df_act['Gemiddeld_Wattage'].idxmax()]
+            df_records_filtered = pd.concat([df_records_filtered, pd.DataFrame([record_watt.to_dict() | {'Record_Type': 'Hoogste Wattage', 'Record_Value': f"{record_watt['Gemiddeld_Wattage']:.0f} W"}])])
+        
+    if df_records_filtered.empty:
+        return ''
+    
+    # Sorteer om duplicates te groeperen en de tabel netjes te tonen
+    df_records_filtered = df_records_filtered.sort_values(by=['Activiteitstype', 'Record_Type'], ascending=True)
+    df_records_filtered = df_records_filtered.drop_duplicates(subset=['Activiteitstype', 'Record_Type']) # Zorg dat we maar 1 van elk type record per sport hebben
+
+    html_rows = []
+    
+    for _, row in df_records_filtered.iterrows():
+        datum_str = row['Datum'].strftime('%d %b %Y')
+        activiteit_type_str = row['Activiteitstype'] 
+        activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
+        
+        # Controleer of Wattage verborgen moet worden (indien HR verborgen is)
+        hr_hidden_class = "hr-hidden" if row['Record_Type'] == 'Intensiefste (Gem. HR)' else ""
+
+        html_row = f"""
+            <tr> 
+                <td>{datum_str}</td>
+                <td>{activiteit_type_str}</td>
+                <td>{row['Record_Type']}</td>
+                <td class="num {hr_hidden_class}">{row['Record_Value']}</td>
+                <td class="col-hide-900">{activiteit_naam}</td>
+            </tr>
+        """
+        html_rows.append(html_row)
+
+    header = """
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Activiteitstype</th>
+                <th>Record Type</th>
+                <th>Record Waarde</th>
+                <th class="col-hide-900">Naam Activiteit</th> 
+            </tr>
+        </thead>
+    """
+        
+    return f"""
+    <div class="detail-table-container records-table">
+        <h2 class="detail-title">🏆 Persoonlijke Records (Hall of Fame)</h2>
+        <table class="activity-table">
+            {header}
+            <tbody>
+                {''.join(html_rows)}
+            </tbody>
+        </table>
+    </div>
+    """
+
+# Functie om de langste streak te berekenen (NIEUW) (7)
+def calculate_longest_streak(df_data):
+    df_dates = df_data['Datum'].dropna().dt.normalize().unique()
+    if len(df_dates) == 0:
+        return 0
+    df_dates = pd.Series(df_dates).sort_values().reset_index(drop=True)
+    
+    # Subtract a series of integers (0, 1, 2, ...) from the dates.
+    # Consecutive dates will have the same result, non-consecutive dates will not.
+    grouped_dates = df_dates - pd.to_timedelta(df_dates.index, unit='D')
+    
+    # Count the size of each group
+    streak_lengths = grouped_dates.value_counts()
+    
+    return streak_lengths.max() if not streak_lengths.empty else 1
 
 
 def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dashboard.html'):
@@ -341,6 +454,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # --- Filter om alle sessies mee te tellen ---
     df_clean = df_clean[df_clean['Activiteitstype'].notna()].copy() 
 
+    # Efficiëntie Score (4) is VERWIJDERD, dus die berekening is ook weg.
+
     # LET OP: df_clean bevat nu ALLE sporten voor kaarten en tabellen.
     print("✅ Data opgeschoond en voorbewerkt.")
     
@@ -412,6 +527,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         Aantal_Activiteiten=('Activiteitstype', 'size'),
         Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean()),
         Gemiddelde_Hartslag=('Gemiddelde_Hartslag', 'mean'), # Toegevoegd voor kaartjes
+        Max_Gemiddelde_Wattage=('Gemiddeld_Wattage', 'max'), # NIEUW (9)
+        # Gemiddelde_Efficientie_Score is VERWIJDERD
     ).reset_index()
     
     agg_jaar['Gemiddelde_Tijd_sec'] = agg_jaar['Totaal_Tijd_sec'] / agg_jaar['Aantal_Activiteiten']
@@ -447,6 +564,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         Aantal_Activiteiten=('Activiteitstype', 'size'),
         Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean()),
         Gemiddelde_Hartslag=('Gemiddelde_Hartslag', 'mean'), # Toegevoegd voor kaartjes
+        Max_Gemiddelde_Wattage=('Gemiddeld_Wattage', 'max'), # NIEUW (9)
+        # Gemiddelde_Efficientie_Score is VERWIJDERD
     ).reset_index()
     
     agg_totaal['Gemiddelde_Tijd_sec'] = agg_totaal['Totaal_Tijd_sec'] / agg_totaal['Aantal_Activiteiten']
@@ -470,6 +589,14 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     
     unieke_activiteiten = sorted(df_clean['Activiteitstype'].unique())
     
+    # --- Longest Streak Berekening (7) ---
+    longest_streak = calculate_longest_streak(df_clean)
+    print(f"✅ Langste streak berekend: {longest_streak} dagen.")
+    
+    # --- Absolute Record Dagen Tabel Data (1, 3-mod, 9) ---
+    records_tabel_html = genereer_records_html(df_clean)
+
+
     print("✅ Gegevens succesvol geaggregeerd.")
 
     # --- Plotly Grafieken Genereren (Globaal) ---
@@ -532,8 +659,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # Genereer kaarten voor het totale overzicht
     totaal_kaarten_html = "".join(agg_totaal.apply(lambda row: genereer_summary_card_html(row, df_clean, is_totaal=True), axis=1).tolist())
     
-    # NIEUW: Genereer de Grand Total kaart voor ALLE jaren
-    totaal_alle_jaren_kaart_html = genereer_totaal_jaar_card_html(agg_alle_jaren.iloc[0], titel="Globaal Totaal Overzicht")
+    # NIEUW: Genereer de Grand Total kaart voor ALLE jaren (Inclusief Streak)
+    totaal_alle_jaren_kaart_html = genereer_totaal_jaar_card_html(agg_alle_jaren.iloc[0], titel="Globaal Totaal Overzicht", longest_streak=longest_streak)
 
     # Genereer de detailtabel voor het globale overzicht
     filter_globaal_html = genereer_filter_html(unieke_activiteiten, 'Globaal')
@@ -547,6 +674,9 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     jaar_knoppen_html = '<button class="jaar-knop active" onclick="showView(\'Globaal\', event)" data-view="Globaal">Totaal Overzicht</button>'
     for jaar in beschikbare_jaren:
         jaar_knoppen_html += f'<button class="jaar-knop" onclick="showView(\'{jaar}\', event)" data-view="{jaar}">{jaar}</button>'
+        
+    # NIEUW: Knop voor de Hall of Fame
+    jaar_knoppen_html += '<button class="jaar-knop" onclick="showView(\'HallOfFame\', event)" data-view="HallOfFame">🏆 Records</button>'
 
     for jaar in beschikbare_jaren:
         # Data voor samenvattingskaartjes per sport
@@ -652,6 +782,16 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             
         </div>
         """
+        
+    # NIEUWE SECTIE: Hall of Fame (Records)
+    hall_of_fame_html = f"""
+        <div id="view-HallOfFame" class="jaar-sectie" style="display: none;">
+            <h2>🏆 Persoonlijke Records (Hall of Fame)</h2>
+            <p>Dit overzicht toont je beste prestaties ooit voor elke sport in de gearchiveerde data.</p>
+            {records_tabel_html}
+             <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">❤️🔒</a>
+        </div>
+    """
 
     # --- Finale HTML-structuur ---
 
@@ -931,6 +1071,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             </div>
             
             {jaar_secties_html}
+            
+            {hall_of_fame_html}
 
         </div>
 
@@ -950,11 +1092,13 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 
                 if (event && event.currentTarget) {{ event.currentTarget.classList.add('active'); }};
                 
-                // Reset de filter wanneer van jaar wordt gewisseld
-                const filter = document.getElementById('filter-' + view_id);
-                if (filter) {{
-                    filter.value = 'ALL';
-                    filterDetailTabel(view_id);
+                // Reset de filter wanneer van jaar wordt gewisseld, tenzij het de Hall of Fame is
+                if (view_id !== 'HallOfFame') {{
+                    const filter = document.getElementById('filter-' + view_id);
+                    if (filter) {{
+                        filter.value = 'ALL';
+                        filterDetailTabel(view_id);
+                    }}
                 }}
             }}
             
