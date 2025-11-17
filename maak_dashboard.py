@@ -98,7 +98,7 @@ def genereer_detail_tabel_html(df_data):
     
     html_rows = []
     
-    # Header van de tabel - Met toegevoegde 'Activiteitstype' en 'Gem. Hartslag (bpm)'
+    # OPGELOST: Kolomvolgorde teruggezet naar: Stijging, Gem. Hartslag
     header = """
         <thead>
             <tr>
@@ -109,7 +109,7 @@ def genereer_detail_tabel_html(df_data):
                 <th>Tijd</th>
                 <th>Gem. Snelheid (km/u)</th>
                 <th>Stijging (m)</th>
-                <th>Gem. Hartslag (bpm)</th>
+                <th>Gem. Hartslag (bpm)</th> 
                 <th>Calorieën</th>
             </tr>
         </thead>
@@ -127,8 +127,7 @@ def genereer_detail_tabel_html(df_data):
         hartslag_str = f"{row['Gemiddelde_Hartslag']:.0f}" if pd.notna(row['Gemiddelde_Hartslag']) and row['Gemiddelde_Hartslag'] > 0 else '-'
         calorieen_str = f"{row['Calorieen']:.0f}" if pd.notna(row['Calorieen']) and row['Calorieen'] > 0 else '-'
         
-        # Voeg data-activity-type toe voor het JS-filter
-        # Voeg hr-hidden class toe aan de hartslag cel
+        # OPGELOST: Data-rijen aangepast aan de correcte volgorde: Stijging, Gem. Hartslag
         html_row = f"""
             <tr data-activity-type="{activiteit_type_str}"> 
                 <td>{datum_str}</td>
@@ -137,7 +136,7 @@ def genereer_detail_tabel_html(df_data):
                 <td class="num">{afstand_str}</td>
                 <td>{tijd_str}</td>
                 <td class="num">{snelheid_str}</td>
-                <td class="num">{stijging_str}</td>
+                <td class="num">{stijging_str}</td> 
                 <td class="num hr-hidden">{hartslag_str}</td> 
                 <td class="num">{calorieen_str}</td>
             </tr>
@@ -247,7 +246,36 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     
     # --- Gegevensaggregatie ---
 
-    # Aggregeren per jaar en activiteitstype
+    df_clean['Jaar_Maand_Period'] = df_clean['Datum'].dt.to_period('M')
+
+    # Bepaal de periode range voor de zero-filling
+    min_date = df_clean['Datum'].min().to_period('M')
+    max_date = df_clean['Datum'].max().to_period('M')
+    full_periods = pd.period_range(start=min_date, end=max_date, freq='M')
+    
+    # Index voor zero-filling (alle combinaties van periode x activiteitstype)
+    full_index_sports = pd.MultiIndex.from_product([full_periods, df_clean['Activiteitstype'].unique()], names=['Jaar_Maand_Period', 'Activiteitstype'])
+
+
+    # 1. Aggregatie Sessions (voor sessions graph) - MET ZERO FILLING
+    sessions_raw = df_clean.groupby(['Jaar_Maand_Period', 'Activiteitstype']).size().rename('Aantal_Activiteiten')
+    agg_sessies_maand = sessions_raw.reindex(full_index_sports, fill_value=0).reset_index()
+    agg_sessies_maand['Jaar'] = agg_sessies_maand['Jaar_Maand_Period'].dt.year
+    agg_sessies_maand['Maand'] = agg_sessies_maand['Jaar_Maand_Period'].dt.month
+    agg_sessies_maand['Jaar_Maand'] = agg_sessies_maand['Jaar'].astype(str) + '-' + agg_sessies_maand['Maand'].astype(str).str.zfill(2)
+    
+    # 2. Aggregatie Afstand (for distance graph) - MET ZERO FILLING
+    distance_raw = df_clean.groupby(['Jaar_Maand_Period', 'Activiteitstype'])['Afstand_km'].sum().rename('Afstand_km')
+    agg_maand_base = distance_raw.reindex(full_index_sports, fill_value=0).reset_index()
+    
+    # Sum over all sports for total distance per month
+    agg_maand = agg_maand_base.groupby('Jaar_Maand_Period')['Afstand_km'].sum().rename('Afstand_km').reset_index()
+    agg_maand['Jaar'] = agg_maand['Jaar_Maand_Period'].dt.year
+    agg_maand['Maand'] = agg_maand['Jaar_Maand_Period'].dt.month
+    agg_maand['Jaar_Maand'] = agg_maand['Jaar'].astype(str) + '-' + agg_maand['Maand'].astype(str).str.zfill(2)
+
+
+    # Aggregeren per jaar en activiteitstype (voor summary cards)
     agg_jaar = df_clean.groupby(['Jaar', 'Activiteitstype']).agg(
         Totaal_Afstand_km=('Afstand_km', 'sum'),
         Totaal_Tijd_sec=('Beweegtijd_sec', 'sum'),
@@ -262,7 +290,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # Bepaal de max stats per jaar
     max_stats = df_clean.groupby(['Jaar', 'Activiteitstype']).agg(
         Max_Afstand_km=('Afstand_km', 'max'),
-        Max_Snelheid_km_u=('Max_Snelheid_km_u', 'max'),
+        # Max. gemiddelde snelheid van een sessie
+        Max_Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', 'max'),
     ).reset_index()
     
     agg_jaar = agg_jaar.merge(max_stats, on=['Jaar', 'Activiteitstype'], how='left')
@@ -285,7 +314,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # Bepaal de max stats in het totale overzicht
     max_stats_totaal = df_clean.groupby('Activiteitstype').agg(
         Max_Afstand_km=('Afstand_km', 'max'),
-        Max_Snelheid_km_u=('Max_Snelheid_km_u', 'max')
+        Max_Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', 'max')
     ).reset_index()
     
     agg_totaal = agg_totaal.merge(max_stats_totaal, on='Activiteitstype', how='left')
@@ -297,12 +326,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     # --- Plotly Grafieken Genereren ---
 
     # 1. Sessions per Month per Sport (Nieuwe Grafiek)
-    agg_sessies_maand = df_clean.groupby(['Jaar', 'Maand', 'Activiteitstype']).agg(
-        Aantal_Activiteiten=('Activiteitstype', 'size')
-    ).reset_index()
-    
-    # Maak een 'Jaar-Maand' string voor de x-as
-    agg_sessies_maand['Jaar_Maand'] = agg_sessies_maand['Jaar'].astype(str) + '-' + agg_sessies_maand['Maand'].astype(str).str.zfill(2)
     
     fig_sessies_per_maand = px.bar(agg_sessies_maand, 
                        x='Jaar_Maand', 
@@ -319,8 +342,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     )
 
     # 2. Afstand per Maand (Balkgrafiek - Blijft ter referentie)
-    agg_maand = df_clean.groupby(['Jaar', 'Maand'])['Afstand_km'].sum().reset_index()
-    agg_maand['Jaar_Maand'] = agg_maand['Jaar'].astype(str) + '-' + agg_maand['Maand'].astype(str).str.zfill(2)
     fig_maand = px.bar(agg_maand, 
                        x='Jaar_Maand', 
                        y='Afstand_km', 
@@ -351,7 +372,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         aantal = f"{row['Aantal_Activiteiten']:d}"
         
         max_dist_row = row.get('Max_Afstand_km', np.nan)
-        max_speed_row = row.get('Max_Snelheid_km_u', np.nan)
+        max_avg_speed_row = row.get('Max_Gemiddelde_Snelheid_km_u', np.nan) # Gebruikt Max Gem. Snelheid
         avg_speed = row.get('Gemiddelde_Snelheid_km_u', np.nan)
         
         stats_html = ""
@@ -363,9 +384,9 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             label = 'Langste Rit' if 'Fiets' in activiteit else ('Langste Loop' if 'Hardloop' in activiteit else 'Max. Afstand')
             stats_html += f'<p class="summary-line"><span class="summary-icon">🗺️</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_dist_row:.1f} km</span></p>'
         
-        if pd.notna(max_speed_row) and max_speed_row > 0:
-            label = 'Max. Snelheid'
-            stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_speed_row:.1f} km/u</span></p>'
+        if pd.notna(max_avg_speed_row) and max_avg_speed_row > 0:
+            label = 'Snelste Gem. Rit' if 'Fiets' in activiteit else 'Snelste Gem. Loop' # Aangepast label
+            stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_avg_speed_row:.1f} km/u</span></p>'
             
         if is_totaal and 'Training' in activiteit:
             max_gewicht = df_clean[df_clean['Activiteitstype'].str.contains('Training', na=False)]['Totaal_Geheven_Gewicht_kg'].max()
@@ -456,6 +477,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         jaar_detail_tabel = genereer_detail_tabel_html(df_detail_jaar)
 
 
+        # FIX: Zorg ervoor dat de grafieken in de jaar-secties ook chart-full-width gebruiken
         jaar_secties_html += f"""
         <div id="view-{jaar}" class="jaar-sectie" style="display: none;">
             <h2>Overzicht {jaar}</h2>
@@ -561,6 +583,12 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             .chart-full-width {{ 
                 width: 100%; margin-bottom: 20px; 
                 background: var(--parchment); padding: 10px; border-radius: 8px;
+            }}
+            /* FIX voor Plotly om 100% breedte te garanderen */
+            .chart-full-width .js-plotly-plot,
+            .chart-full-width .plotly-graph-div,
+            .chart-full-width .svg-container {{ 
+                width: 100% !important; 
             }}
 
             .footer-note {{
