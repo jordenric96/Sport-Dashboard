@@ -142,7 +142,7 @@ def genereer_filter_html(unieke_activiteiten, sectie_id):
         options.append(f'<option value="{activity}">{activity}</option>')
         
     return f"""
-    <div class="filter-container">
+    <div class="filter-container" id="filter-container-{sectie_id}">
         <label for="filter-{sectie_id}">Filter op Sport:</label>
         <select id="filter-{sectie_id}" onchange="filterDetailTabel('{sectie_id}')">
             {''.join(options)}
@@ -487,8 +487,15 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         yaxis_title="Totaal Aantal Sessies", 
         # FIX: Forceer de volgorde van de categorische as naar oplopend (2024 vóór 2025)
         xaxis={'type': 'category', 'categoryorder': 'category ascending'}, 
-        margin=dict(t=50, b=20, l=20, r=20),
-        legend_title_text='Sport'
+        # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+        margin=dict(t=90, b=20, l=20, r=20),
+        legend_title_text='Sport',
+        # Legende horizontaal bovenaan
+        legend_orientation="h",
+        legend_yanchor="bottom",
+        legend_y=1.02,
+        legend_xanchor="left",
+        legend_x=0
     )
     fig_sessies_per_jaar.update_traces(textposition='inside', marker_line_width=0)
 
@@ -506,8 +513,15 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         yaxis_title="Totale Afstand (km)", 
         # FIX: Forceer de volgorde van de categorische as naar oplopend (2024 vóór 2025)
         xaxis={'type': 'category', 'categoryorder': 'category ascending'}, 
-        margin=dict(t=50, b=20, l=20, r=20),
-        legend_title_text='Sport'
+        # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+        margin=dict(t=90, b=20, l=20, r=20),
+        legend_title_text='Sport',
+        # Legende horizontaal bovenaan
+        legend_orientation="h",
+        legend_yanchor="bottom",
+        legend_y=1.02,
+        legend_xanchor="left",
+        legend_x=0
     )
     fig_afstand_per_jaar.update_traces(textposition='inside', marker_line_width=0)
     
@@ -558,8 +572,15 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             xaxis_title="Maand", 
             yaxis_title="Aantal Sessies", 
             xaxis={'tickmode': 'array', 'tickvals': df_sessies_jaar['Jaar_Maand'], 'ticktext': df_sessies_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, # Toon maandaanduiding
-            margin=dict(t=50, b=20, l=20, r=20),
-            legend_title_text='Sport'
+            # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+            margin=dict(t=90, b=20, l=20, r=20),
+            legend_title_text='Sport',
+            # Legende horizontaal bovenaan
+            legend_orientation="h",
+            legend_yanchor="bottom",
+            legend_y=1.02,
+            legend_xanchor="left",
+            legend_x=0
         )
 
         # Nieuwe Logica: Afstand per Maand OPGESPLITST per Activiteit
@@ -575,8 +596,15 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             xaxis_title="Maand", 
             yaxis_title="Afstand (km)", 
             xaxis={'tickmode': 'array', 'tickvals': df_distance_jaar['Jaar_Maand'], 'ticktext': df_distance_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, 
-            margin=dict(t=50, b=20, l=20, r=20),
-            legend_title_text='Sport'
+            # AANGEPAST: Vergrote bovenmarge om ruimte te maken voor de horizontale legende
+            margin=dict(t=90, b=20, l=20, r=20),
+            legend_title_text='Sport',
+            # Legende horizontaal bovenaan
+            legend_orientation="h",
+            legend_yanchor="bottom",
+            legend_y=1.02,
+            legend_xanchor="left",
+            legend_x=0
         )
         
         # Max. Gewicht voor dit jaar (Robuuste logica)
@@ -595,10 +623,12 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
 
 
         # FIX: Alle grafieken in jaar-secties gebruiken nu chart-full-width
-        # TOEVOEGING: Totaal jaar kaart
+        # POSITIE FIX: Filter verplaatst naar direct na H2
         jaar_secties_html += f"""
         <div id="view-{jaar}" class="jaar-sectie" style="display: none;">
             <h2>Overzicht {jaar}</h2>
+            
+            {filter_jaar_html}
             
             <div class="summary-container-total"> 
                 {totaal_jaar_kaart_html}
@@ -618,7 +648,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             <div class="footer-note">{gewicht_html}</div>
             
             <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">❤️🔒</a>
-            {filter_jaar_html}
             {jaar_detail_tabel}
             
         </div>
@@ -789,15 +818,19 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             .hr-reveal-button:hover {{ color: var(--toffee-brown); }}
 
             /* Detail Tabel STYLING */
+            /* NIEUW: Horizontaal scrollen voor mobiel */
             .detail-table-container {{ 
                 margin-top: 20px; 
+                overflow-x: auto; /* Belangrijk voor scrollen op smallere schermen */
             }}
             .detail-title {{ 
                 color: var(--toffee-brown); font-size: 1.5em; margin-bottom: 15px; 
                 border-bottom: 1px solid var(--almond-silk); padding-bottom: 5px;
             }}
             .activity-table {{
-                width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em;
+                width: 100%; 
+                min-width: 700px; /* Forceer een minimale breedte voor scrollen op mobiel */
+                border-collapse: collapse; margin-top: 15px; font-size: 0.85em;
             }}
             .activity-table th {{
                 background-color: var(--muted-teal); color: #fff; padding: 10px; text-align: left;
@@ -820,6 +853,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             }}
 
             /* Responsieve aanpassingen - Progressieve kolomverbergen */
+            /* Belangrijk: De onderstaande media queries werken nog steeds, maar de overflow-x: auto zorgt ervoor dat de scrollbar verschijnt als ze niet allemaal verborgen zijn. */
+            
             /* Prioriteit 1: Verberg Naam Activiteit op kleinere schermen dan 900px */
             .activity-table .col-hide-900 {{
                 display: table-cell; 
@@ -874,6 +909,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             <div id="view-Globaal" class="jaar-sectie">
                 <h2>Totaal Overzicht</h2>
                 
+                {filter_globaal_html}
+                
                 <div class="summary-container-total"> 
                     {totaal_alle_jaren_kaart_html}
                 </div>
@@ -890,7 +927,6 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 </div>
                 
                 <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">❤️🔒</a>
-                {filter_globaal_html}
                 {totaal_detail_tabel}
             </div>
             
