@@ -3,7 +3,7 @@ import numpy as np
 import plotly.express as px
 import plotly.io as pio
 
-# Definieer de kleuren die in de Plotly grafieken gebruikt moeten worden (AFKORTING ZONDER ALPHA-WAARDE)
+# Definieer de kleuren die in de Plotly grafieken gebruikt moeten worden
 CUSTOM_COLORS = [
     '#6c9a8b',  # --muted-teal
     '#e8998d',  # --sweet-salmon
@@ -67,7 +67,7 @@ def format_sport_specific_stats(row, activity_type):
     
     # 1. Gemiddelde Hartslag
     hr_avg = row.get('Gemiddelde_Hartslag', np.nan)
-    stats_html += f'<p class="summary-line"><span class="summary-icon">❤️</span> <span class="summary-value">{int(hr_avg):d} bpm</span></p>' if pd.notna(hr_avg) else ''
+    stats_html += f'<p class="summary-line"><span class="summary-icon">❤️</span> <span class="summary-value">{int(hr_avg):d} bpm</span></p>' if pd.notna(hr_avg) and hr_avg > 0 else ''
 
     # 2. Snelste en Langste Rit/Loopsessie
     is_ride = 'Fiets' in activity_type
@@ -88,6 +88,89 @@ def format_sport_specific_stats(row, activity_type):
 
     return stats_html
 
+# Functie om de gedetailleerde lijst in HTML te genereren
+def genereer_detail_tabel_html(df_data):
+    if df_data.empty:
+        return '<p class="no-data-msg">Geen activiteiten gevonden voor dit overzicht.</p>'
+
+    # Sorteer op datum, OUDSTE BOVENAAN
+    df_data = df_data.sort_values(by='Datum', ascending=True) 
+    
+    html_rows = []
+    
+    # Header van de tabel - Met toegevoegde 'Activiteitstype' en 'Gem. Hartslag (bpm)'
+    header = """
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Activiteitstype</th>
+                <th>Naam Activiteit</th>
+                <th>Afstand (km)</th>
+                <th>Tijd</th>
+                <th>Gem. Snelheid (km/u)</th>
+                <th>Stijging (m)</th>
+                <th>Gem. Hartslag (bpm)</th>
+                <th>Calorieën</th>
+            </tr>
+        </thead>
+    """
+    
+    # Rijen genereren
+    for _, row in df_data.iterrows():
+        datum_str = row['Datum'].strftime('%d %b %Y') if pd.notna(row['Datum']) else '-'
+        activiteit_type_str = row['Activiteitstype'] 
+        activiteit_naam = row['Naam_Activiteit'] if pd.notna(row['Naam_Activiteit']) and row['Naam_Activiteit'].strip() else row['Activiteitstype']
+        afstand_str = f"{row['Afstand_km']:.1f}" if pd.notna(row['Afstand_km']) else '-'
+        tijd_str = format_time(row['Beweegtijd_sec'])
+        snelheid_str = f"{row['Gemiddelde_Snelheid_km_u']:.1f}" if pd.notna(row['Gemiddelde_Snelheid_km_u']) and row['Afstand_km'] > 0 else '-'
+        stijging_str = f"{row['Totale_Stijging_m']:.0f}" if pd.notna(row['Totale_Stijging_m']) else '-'
+        hartslag_str = f"{row['Gemiddelde_Hartslag']:.0f}" if pd.notna(row['Gemiddelde_Hartslag']) and row['Gemiddelde_Hartslag'] > 0 else '-'
+        calorieen_str = f"{row['Calorieen']:.0f}" if pd.notna(row['Calorieen']) and row['Calorieen'] > 0 else '-'
+        
+        # Voeg data-activity-type toe voor het JS-filter
+        # Voeg hr-hidden class toe aan de hartslag cel
+        html_row = f"""
+            <tr data-activity-type="{activiteit_type_str}"> 
+                <td>{datum_str}</td>
+                <td>{activiteit_type_str}</td>
+                <td>{activiteit_naam}</td>
+                <td class="num">{afstand_str}</td>
+                <td>{tijd_str}</td>
+                <td class="num">{snelheid_str}</td>
+                <td class="num">{stijging_str}</td>
+                <td class="num hr-hidden">{hartslag_str}</td> 
+                <td class="num">{calorieen_str}</td>
+            </tr>
+        """
+        html_rows.append(html_row)
+        
+    return f"""
+    <div class="detail-table-container">
+        <h2 class="detail-title">Gedetailleerd Overzicht</h2>
+        <table class="activity-table">
+            {header}
+            <tbody>
+                {''.join(html_rows)}
+            </tbody>
+        </table>
+    </div>
+    """
+
+# Functie om de HTML voor het filter te genereren
+def genereer_filter_html(unieke_activiteiten, sectie_id):
+    options = ['<option value="ALL">Alle Activiteiten</option>']
+    for activity in unieke_activiteiten:
+        options.append(f'<option value="{activity}">{activity}</option>')
+        
+    return f"""
+    <div class="filter-container">
+        <label for="filter-{sectie_id}">Filter op Sport:</label>
+        <select id="filter-{sectie_id}" onchange="filterDetailTabel('{sectie_id}')">
+            {''.join(options)}
+        </select>
+    </div>
+    """
+
 
 def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dashboard.html'):
     """
@@ -99,225 +182,304 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     except FileNotFoundError:
         print(f"Fout: Bestand '{csv_bestandsnaam}' niet gevonden. Zorg ervoor dat het in dezelfde map staat.")
         return
-    except Exception as e:
-        print(f"Fout bij het inlezen van de data: {e}")
-        return
+        
+    # --- FIX 1: Omzetten van m/s naar km/u ---
+    if 'Gemiddelde snelheid' in df.columns:
+        df['Gemiddelde snelheid'] = df['Gemiddelde snelheid'] * 3.6
+    if 'Max. snelheid' in df.columns:
+        df['Max. snelheid'] = df['Max. snelheid'] * 3.6
+    print('✅ Snelheid (m/s) succesvol geconverteerd naar km/u.')
+    
+    # Herbenoemen en opschonen van kolommen
+    df = df.rename(columns={
+        'Datum van activiteit': 'Datum',
+        'Naam activiteit': 'Naam_Activiteit', 
+        'Activiteitstype': 'Activiteitstype',
+        'Verstreken tijd': 'Verstreken_Tijd_sec',
+        'Beweegtijd': 'Beweegtijd_sec',
+        'Afstand': 'Afstand_km', 
+        'Max. snelheid': 'Max_Snelheid_km_u',
+        'Gemiddelde snelheid': 'Gemiddelde_Snelheid_km_u',
+        'Totale stijging': 'Totale_Stijging_m',
+        'Max. hartslag': 'Max_Hartslag',
+        'Gemiddelde hartslag': 'Gemiddelde_Hartslag',
+        'Max. cadans': 'Max_Cadans',
+        'Gemiddelde cadans': 'Gemiddelde_Cadans',
+        'Calorieën': 'Calorieen',
+        'Gemiddeld wattage': 'Gemiddeld_Wattage',
+        'Totaal geheven gewicht': 'Totaal_Geheven_Gewicht_kg',
+    })
 
-    # --- Data Voorbereiding en Opschoning ---
-    df.columns = df.columns.str.strip()
-    ACTIVITEITS_KOLOMNAAM = df.columns[3] 
-    df['Datum van activiteit'] = robust_date_parser_final(df['Datum van activiteit'])
-    df['Jaar'] = df['Datum van activiteit'].dt.year
+    # --- FIX 2: Conversie van komma naar punt voor numerieke kolommen ---
+    kolommen_met_komma_als_decimaal = ['Afstand_km', 'Totale_Stijging_m', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u', 'Calorieen', 'Gemiddeld_Wattage', 'Totaal_Geheven_Gewicht_kg', 'Gemiddelde_Hartslag']
+    
+    for col in kolommen_met_komma_als_decimaal:
+        if col in df.columns and df[col].dtype == object:
+            df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
+            df[col] = pd.to_numeric(df[col], errors='coerce') 
+    
+    print('✅ Decimale komma\'s succesvol geconverteerd naar punten.')
+    
+    # Datum parsing
+    df['Datum'] = robust_date_parser_final(df['Datum'])
+    df['Jaar'] = df['Datum'].dt.year
+    df['Maand'] = df['Datum'].dt.month
+    df['Week'] = df['Datum'].dt.isocalendar().week.astype(pd.Int64Dtype()) 
+    df['Week'] = df['Week'].fillna(0).astype(int) 
+    
+    # Selecteer alleen de relevante kolommen voor de analyse
+    relevante_kolommen = [
+        'Datum', 'Naam_Activiteit', 'Jaar', 'Maand', 'Week', 'Activiteitstype', 
+        'Afstand_km', 'Verstreken_Tijd_sec', 'Beweegtijd_sec', 'Totale_Stijging_m',
+        'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u', 'Gemiddelde_Hartslag', 
+        'Calorieen', 'Gemiddeld_Wattage', 'Totaal_Geheven_Gewicht_kg'
+    ]
+    df_clean = df[relevante_kolommen].copy()
+    
+    # Opschonen van NaN's 
+    df_clean.loc[:, 'Totale_Stijging_m'] = df_clean['Totale_Stijging_m'].fillna(0)
+    df_clean.loc[:, 'Calorieen'] = df_clean['Calorieen'].fillna(0)
+    
+    # --- FIX 3: Verwijder de filter op Afstand_km > 0.1 om alle sessies mee te tellen ---
+    df_clean = df_clean[df_clean['Activiteitstype'].notna()].copy() 
 
-    numeric_cols = ['Afstand', 'Verstreken tijd', 'Max. hartslag', 'Gemiddelde hartslag', 
-                    'Maximaal wattage', 'Gemiddeld wattage', 'Max. snelheid', 'Gemiddelde snelheid']
+    print("✅ Data opgeschoond en voorbewerkt (filter > 0.1 km verwijderd).")
+    
+    # --- Gegevensaggregatie ---
 
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.replace(' ', '', regex=False).str.replace(',', '.', regex=False)
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-    df['Afstand (km)'] = df['Afstand']
-    df['Verstreken tijd (sec)'] = df['Verstreken tijd']
-    
-    df_clean = df.dropna(subset=['Datum van activiteit']).copy()
-
-    # FIX: Gemiddelde Snelheid. Gebruik ALLEEN de Moving Average van de device (Gemiddelde snelheid)
-    if 'Gemiddelde snelheid' in df_clean.columns:
-        df_clean['Gemiddelde km/u'] = df_clean['Gemiddelde snelheid'].round(1)
-    else:
-        df_clean['Gemiddelde km/u'] = np.nan
-    
-    # ******************************************************************************
-    # FIX: Slimme Categorisatie (deze sectie creëert 'Final_Activiteitstype')
-    # Dit blok MOET hier staan voordat de data wordt gegroepeerd
-    # ******************************************************************************
-    df_clean['Activiteitstype_Basis'] = df_clean[ACTIVITEITS_KOLOMNAAM].astype(str).str.strip()
-    df_clean['Final_Activiteitstype'] = df_clean['Activiteitstype_Basis']
-    
-    needs_categorization = df_clean['Activiteitstype_Basis'].isna() | (df_clean['Activiteitstype_Basis'] == '') | (df_clean['Activiteitstype_Basis'] == 'nan')
-    naam_activiteit_lower = df_clean['Naam activiteit'].astype(str).str.lower()
-    
-    df_clean.loc[needs_categorization & naam_activiteit_lower.str.contains('loop|hardlopen'), 'Final_Activiteitstype'] = 'Hardloopsessie'
-    df_clean.loc[needs_categorization & naam_activiteit_lower.str.contains('fiets|rit'), 'Final_Activiteitstype'] = 'Fietsrit'
-    df_clean.loc[needs_categorization & naam_activiteit_lower.str.contains('wandel'), 'Final_Activiteitstype'] = 'Wandeling'
-    
-    df_clean['Final_Activiteitstype'] = df_clean['Final_Activiteitstype'].fillna('Niet Gecategoriseerd')
-    df_clean.loc[df_clean['Final_Activiteitstype'] == 'nan', 'Final_Activiteitstype'] = 'Niet Gecategoriseerd'
-    # ******************************************************************************
-    
-    # --- Aggregatie voor Grafieken en Summary Cards ---
-    
-    # De groupby operation is nu veilig omdat 'Final_Activiteitstype' bestaat.
-    overall_summary = df_clean.groupby('Final_Activiteitstype').agg(
-        Totaal_Activiteiten=('Final_Activiteitstype', 'size'),
-        Totale_Afstand_km=('Afstand (km)', 'sum'),
-        Totale_Tijd_sec=('Verstreken tijd (sec)', 'sum'),
-        Gemiddelde_Hartslag=('Gemiddelde hartslag', 'mean'),
-        Max_Afstand_km=('Afstand (km)', 'max'),
-        Max_Snelheid_km_u=('Gemiddelde km/u', 'max') 
+    # Aggregeren per jaar en activiteitstype
+    agg_jaar = df_clean.groupby(['Jaar', 'Activiteitstype']).agg(
+        Totaal_Afstand_km=('Afstand_km', 'sum'),
+        Totaal_Tijd_sec=('Beweegtijd_sec', 'sum'),
+        Totaal_Stijging_m=('Totale_Stijging_m', 'sum'),
+        Totaal_Calorieen=('Calorieen', 'sum'),
+        Aantal_Activiteiten=('Activiteitstype', 'size'),
+        Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean())
     ).reset_index()
-
-    # Pie Chart
-    fig_pie = px.pie(
-        overall_summary, values='Totaal_Activiteiten', names='Final_Activiteitstype',
-        title='Globale Distributie van Activiteiten', template="plotly_white", hole=.3, height=350,
-        color_discrete_sequence=CUSTOM_COLORS
-    )
-    plotly_html_pie = pio.to_html(fig_pie, full_html=False, include_plotlyjs='cdn')
     
-    # Summary Cards
-    summary_cards_html = ""
-    for index, row in overall_summary.iterrows():
-        formatted_time = format_time(row['Totale_Tijd_sec'])
-        activity_type = row['Final_Activiteitstype']
-        activity_icon = get_activity_icon(activity_type) 
+    agg_jaar['Gemiddelde_Tijd_sec'] = agg_jaar['Totaal_Tijd_sec'] / agg_jaar['Aantal_Activiteiten']
+    
+    # Bepaal de max stats per jaar
+    max_stats = df_clean.groupby(['Jaar', 'Activiteitstype']).agg(
+        Max_Afstand_km=('Afstand_km', 'max'),
+        Max_Snelheid_km_u=('Max_Snelheid_km_u', 'max'),
+    ).reset_index()
+    
+    agg_jaar = agg_jaar.merge(max_stats, on=['Jaar', 'Activiteitstype'], how='left')
+
+    # Berekenen van de zwaarste workout voor Totaal Geheven Gewicht 
+    agg_jaar_gewicht = df_clean[df_clean['Totaal_Geheven_Gewicht_kg'].notna() & (df_clean['Totaal_Geheven_Gewicht_kg'] > 0)].groupby('Jaar')['Totaal_Geheven_Gewicht_kg'].max().reset_index().rename(columns={'Totaal_Geheven_Gewicht_kg': 'Max_Gewicht'})
+    
+    # Aggregeren van alle data over de tijd (globaal overzicht)
+    agg_totaal = df_clean.groupby('Activiteitstype').agg(
+        Totaal_Afstand_km=('Afstand_km', 'sum'),
+        Totaal_Tijd_sec=('Beweegtijd_sec', 'sum'),
+        Totaal_Stijging_m=('Totale_Stijging_m', 'sum'),
+        Totaal_Calorieen=('Calorieen', 'sum'),
+        Aantal_Activiteiten=('Activiteitstype', 'size'),
+        Gemiddelde_Snelheid_km_u=('Gemiddelde_Snelheid_km_u', lambda x: x[df_clean.loc[x.index, 'Afstand_km'] > 0].mean())
+    ).reset_index()
+    
+    agg_totaal['Gemiddelde_Tijd_sec'] = agg_totaal['Totaal_Tijd_sec'] / agg_totaal['Aantal_Activiteiten']
+
+    # Bepaal de max stats in het totale overzicht
+    max_stats_totaal = df_clean.groupby('Activiteitstype').agg(
+        Max_Afstand_km=('Afstand_km', 'max'),
+        Max_Snelheid_km_u=('Max_Snelheid_km_u', 'max')
+    ).reset_index()
+    
+    agg_totaal = agg_totaal.merge(max_stats_totaal, on='Activiteitstype', how='left')
+    
+    unieke_activiteiten = sorted(df_clean['Activiteitstype'].unique())
+    
+    print("✅ Gegevens succesvol geaggregeerd.")
+
+    # --- Plotly Grafieken Genereren ---
+
+    # 1. Sessions per Month per Sport (Nieuwe Grafiek)
+    agg_sessies_maand = df_clean.groupby(['Jaar', 'Maand', 'Activiteitstype']).agg(
+        Aantal_Activiteiten=('Activiteitstype', 'size')
+    ).reset_index()
+    
+    # Maak een 'Jaar-Maand' string voor de x-as
+    agg_sessies_maand['Jaar_Maand'] = agg_sessies_maand['Jaar'].astype(str) + '-' + agg_sessies_maand['Maand'].astype(str).str.zfill(2)
+    
+    fig_sessies_per_maand = px.bar(agg_sessies_maand, 
+                       x='Jaar_Maand', 
+                       y='Aantal_Activiteiten', 
+                       color='Activiteitstype', 
+                       title='Aantal Sessies per Maand (per Sport)',
+                       color_discrete_sequence=CUSTOM_COLORS)
+    fig_sessies_per_maand.update_layout(
+        xaxis_title="Jaar en Maand", 
+        yaxis_title="Aantal Sessies", 
+        xaxis={'tickmode': 'array', 'tickvals': agg_sessies_maand['Jaar_Maand'][::2], 'ticktext': agg_sessies_maand['Jaar_Maand'][::2]}, # Toon niet alle ticks
+        margin=dict(t=50, b=20, l=20, r=20),
+        legend_title_text='Sport'
+    )
+
+    # 2. Afstand per Maand (Balkgrafiek - Blijft ter referentie)
+    agg_maand = df_clean.groupby(['Jaar', 'Maand'])['Afstand_km'].sum().reset_index()
+    agg_maand['Jaar_Maand'] = agg_maand['Jaar'].astype(str) + '-' + agg_maand['Maand'].astype(str).str.zfill(2)
+    fig_maand = px.bar(agg_maand, 
+                       x='Jaar_Maand', 
+                       y='Afstand_km', 
+                       color='Jaar', 
+                       title='Totale Afstand per Maand',
+                       color_discrete_sequence=CUSTOM_COLORS)
+    fig_maand.update_layout(
+        xaxis_title="Jaar en Maand", 
+        yaxis_title="Afstand (km)", 
+        xaxis={'tickmode': 'array', 'tickvals': agg_maand['Jaar_Maand'][::2], 'ticktext': agg_maand['Jaar_Maand'][::2]}, 
+        margin=dict(t=50, b=20, l=20, r=20),
+        legend_title_text='Jaar'
+    )
+    
+    print("✅ Grafieken gegenereerd.")
+    
+    # --- HTML Genereren ---
+
+    # Functie om de HTML-statistiekenkaartjes te genereren
+    def genereer_summary_card_html(row, is_totaal=False):
+        activiteit = row['Activiteitstype']
+        icon = get_activity_icon(activiteit)
         
-        # Basis statistieken
-        base_stats_html = f"""
-            <p class="summary-line"><span class="summary-icon">{activity_icon}</span> <span class="summary-value">{row['Totaal_Activiteiten']}</span></p>
-            <p class="summary-line"><span class="summary-icon">📏</span> <span class="summary-value">{row['Totale_Afstand_km']:.1f} km</span></p>
-            <p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-value">{formatted_time}</span></p>
-        """
+        # FIX: Gebruik Totaal_Stijging_m (de geaggregeerde kolomnaam)
+        afstand_totaal = f"{row['Totaal_Afstand_km']:.1f} km"
+        tijd_totaal = format_time(row['Totaal_Tijd_sec'])
+        stijging_totaal = f"{row['Totaal_Stijging_m']:.0f} m"
+        aantal = f"{row['Aantal_Activiteiten']:d}"
         
-        # Sport-specifieke statistieken (Gemiddelde HR, Langste/Snelste)
-        extra_stats_html = format_sport_specific_stats(row, activity_type)
+        max_dist_row = row.get('Max_Afstand_km', np.nan)
+        max_speed_row = row.get('Max_Snelheid_km_u', np.nan)
+        avg_speed = row.get('Gemiddelde_Snelheid_km_u', np.nan)
         
-        summary_cards_html += f"""
-            <div class="card card-summary">
-                <h4>{activity_type}</h4>
-                {base_stats_html}
-                {extra_stats_html}
+        stats_html = ""
+        
+        if pd.notna(avg_speed) and avg_speed > 0:
+            stats_html += f'<p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-label">Gem. Snelheid:</span> <span class="summary-value-small">{avg_speed:.1f} km/u</span></p>'
+            
+        if pd.notna(max_dist_row) and max_dist_row > 0:
+            label = 'Langste Rit' if 'Fiets' in activiteit else ('Langste Loop' if 'Hardloop' in activiteit else 'Max. Afstand')
+            stats_html += f'<p class="summary-line"><span class="summary-icon">🗺️</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_dist_row:.1f} km</span></p>'
+        
+        if pd.notna(max_speed_row) and max_speed_row > 0:
+            label = 'Max. Snelheid'
+            stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_speed_row:.1f} km/u</span></p>'
+            
+        if is_totaal and 'Training' in activiteit:
+            max_gewicht = df_clean[df_clean['Activiteitstype'].str.contains('Training', na=False)]['Totaal_Geheven_Gewicht_kg'].max()
+            if pd.notna(max_gewicht) and max_gewicht > 0:
+                stats_html += f'<p class="summary-line"><span class="summary-icon">🏋️</span> <span class="summary-label">Max. Gewicht:</span> <span class="summary-value-small">{max_gewicht:,.0f} kg</span></p>'
+
+
+        html = f"""
+        <div class="summary-card" data-type="{activiteit}">
+            <div class="card-header">
+                <span class="activity-icon">{icon}</span>
+                <h3 class="activity-title">{activiteit} ({aantal}x)</h3>
             </div>
-        """
-        
-    global_content = f"""
-        <div class="card-grid-2">
-            <div class="card chart-container chart-pie">
-                {plotly_html_pie}
+            <div class="stats-group">
+                <p class="stat-main"><span>Tijd:</span> {tijd_totaal}</p>
+                <p class="stat-main"><span>Afstand:</span> {afstand_totaal}</p>
+                <p class="stat-main"><span>Stijging:</span> {stijging_totaal}</p>
             </div>
-            <div class="card-grid-small">
-                {summary_cards_html}
+            <div class="stats-details">
+                {stats_html}
             </div>
         </div>
-    """
+        """
+        return html
 
-    # --- Lijn Grafiek (Maandelijkse frequentie over alle jaren) ---
-    df_clean['Jaar_Maand'] = df_clean['Datum van activiteit'].dt.to_period('M').astype(str)
-    df_clean['Maand_Jaar'] = df_clean['Datum van activiteit'].dt.year 
+    # Genereer kaarten voor het totale overzicht
+    totaal_kaarten_html = "".join(agg_totaal.apply(lambda row: genereer_summary_card_html(row, is_totaal=True), axis=1).tolist())
     
-    monthly_freq = df_clean.groupby(['Jaar_Maand', 'Final_Activiteitstype']).size().reset_index(name='Aantal')
+    # Genereer de detailtabel voor het globale overzicht
+    filter_globaal_html = genereer_filter_html(unieke_activiteiten, 'Globaal')
+    totaal_detail_tabel = genereer_detail_tabel_html(df_clean)
+
+    # Genereer secties per jaar
+    jaar_secties_html = ""
+    beschikbare_jaren = sorted(agg_jaar['Jaar'].unique(), reverse=True)
     
-    monthly_freq_per_year = df_clean.groupby(['Jaar_Maand', 'Maand_Jaar', 'Final_Activiteitstype']).size().reset_index(name='Aantal')
-    monthly_freq_per_year.rename(columns={'Maand_Jaar': 'Jaar'}, inplace=True) 
+    # Maak de knoppen voor jaarselectie
+    jaar_knoppen_html = '<button class="jaar-knop active" onclick="showView(\'Globaal\', event)" data-view="Globaal">Totaal Overzicht</button>'
+    for jaar in beschikbare_jaren:
+        jaar_knoppen_html += f'<button class="jaar-knop" onclick="showView(\'{jaar}\', event)" data-view="{jaar}">{jaar}</button>'
 
-    fig_line_all_years = px.line(
-        monthly_freq, x='Jaar_Maand', y='Aantal', color='Final_Activiteitstype',
-        title='Maandelijkse Frequentie van Alle Sporten (Klik op Legenda om te filteren)',
-        labels={'Aantal': 'Aantal Sessies', 'Jaar_Maand': 'Datum'}, template="plotly_white", height=500,
-        color_discrete_sequence=CUSTOM_COLORS
-    )
-    fig_line_all_years.update_traces(mode='lines+markers')
-    plotly_html_line_all_years = pio.to_html(fig_line_all_years, full_html=False, include_plotlyjs='cdn')
-
-    # --- Detail Weergave per Jaar en Knoppen Generatie ---
-    
-    jaren_lijst = sorted(df_clean['Jaar'].dropna().unique().astype(int).tolist(), reverse=True)
-    knop_html = f'<button class="jaar-knop active" data-view="Globaal" onclick="toonView(\'Globaal\', event)">Totaal Overzicht</button>'
-    detail_secties_html = ""
-    
-    DETAIL_COLS_DISPLAY = {
-        'Final_Activiteitstype': 'Sport', 'Naam activiteit': 'Activiteit', 'Afstand (km)': 'Afstand (km)',
-        'Verstreken Tijd (Geformatteerd)': 'Verstreken Tijd', 'Gemiddelde km/u': 'Gem. Snelheid (km/u)', 'Gemiddelde hartslag': 'Gem. HR',
-        'Gemiddeld wattage': 'Gem. Wattage'
-    }
-
-    for jaar in jaren_lijst:
-        df_jaar = df_clean[df_clean['Jaar'] == jaar].copy()
-        knop_html += f'<button class="jaar-knop" data-view="{jaar}" onclick="toonView(\'{jaar}\', event)">{jaar} ({len(df_jaar)})</button>'
-
-        html_jaar_detail = ""
-        for sport_type, df_sport in df_jaar.groupby('Final_Activiteitstype'):
-            
-            df_sport['Verstreken Tijd (Geformatteerd)'] = df_sport['Verstreken tijd (sec)'].apply(format_time)
-
-            # Aggregatie voor de detailkaart
-            total_activities = df_sport['Final_Activiteitstype'].size
-            total_distance = df_sport['Afstand (km)'].sum()
-            total_time_sec = df_sport['Verstreken tijd (sec)'].sum()
-            formatted_time_sport = format_time(total_time_sec)
-            activity_icon = get_activity_icon(sport_type) 
-            
-            # Bereken aggregaties voor deze subgroep
-            stats_row = {
-                'Gemiddelde_Hartslag': df_sport['Gemiddelde hartslag'].mean(),
-                'Max_Afstand_km': df_sport['Afstand (km)'].max(),
-                'Max_Snelheid_km_u': df_sport['Gemiddelde km/u'].max()
-            }
-            extra_stats_html = format_sport_specific_stats(stats_row, sport_type)
-
-            df_sport_monthly_year = monthly_freq_per_year[(monthly_freq_per_year['Final_Activiteitstype'] == sport_type) & (monthly_freq_per_year['Jaar'] == jaar)]
-            
-            fig_line_year_sport = px.line(
-                df_sport_monthly_year, x='Jaar_Maand', y='Aantal', title=f'Maandfrequentie {jaar}',
-                labels={'Aantal': 'Sessies', 'Jaar_Maand': 'Datum'}, template="plotly_white", height=250,
-                color_discrete_sequence=CUSTOM_COLORS
-            )
-            fig_line_year_sport.update_traces(mode='lines+markers')
-            plotly_html_line_year_sport = pio.to_html(fig_line_year_sport, full_html=False, include_plotlyjs='cdn')
-            
-            df_sport_display = df_sport[list(DETAIL_COLS_DISPLAY.keys())].rename(columns=DETAIL_COLS_DISPLAY).drop(columns=['Sport'])
-            numeric_format_map = {'Afstand (km)': '{:.2f}', 'Gem. Snelheid (km/u)': '{:.1f}', 'Gem. HR': '{:.0f}', 'Gem. Wattage': '{:.0f}'}
-            for col, fmt in numeric_format_map.items():
-                if col in df_sport_display.columns:
-                    df_sport_display[col] = df_sport_display[col].apply(
-                        lambda x: fmt.format(x) if pd.notna(x) and isinstance(x, (int, float, np.number)) else '-'
-                    )
-
-            # Detailweergave (gebruikt .card-stats)
-            html_jaar_detail += f"""
-                <div class="sport-card">
-                    <h4>{sport_type}</h4>
-                    <div class="card-grid-2">
-                        <div class="card-stats"> 
-                            <p class="summary-line"><span class="summary-icon">{activity_icon}</span> <span class="summary-value">{total_activities}</span></p>
-                            <p class="summary-line"><span class="summary-icon">📏</span> <span class="summary-value">{total_distance:.1f} km</span></p>
-                            <p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-value">{formatted_time_sport}</span></p>
-                            {extra_stats_html}
-                        </div>
-                        <div class="chart-container-small">
-                            {plotly_html_line_year_sport}
-                        </div>
-                    </div>
-                    
-                    <h5>Details ({len(df_sport)} items)</h5>
-                    {df_sport_display.to_html(classes='table table-bordered table-striped detail-table', index=False, border=0)}
-                </div>
-            """
+    for jaar in beschikbare_jaren:
+        df_jaar = agg_jaar[agg_jaar['Jaar'] == jaar].copy()
+        jaar_kaarten_html = "".join(df_jaar.apply(genereer_summary_card_html, axis=1).tolist())
         
-        detail_secties_html += f"""
-            <div id="view-{jaar}" class="jaar-sectie" style="display:none;">
-                {html_jaar_detail}
+        # Gegevens voor maandelijkse sessies per sport voor dit jaar
+        df_sessies_jaar = agg_sessies_maand[agg_sessies_maand['Jaar'] == jaar].copy()
+        
+        fig_jaar_sessies_per_maand = px.bar(df_sessies_jaar, 
+                           x='Jaar_Maand', 
+                           y='Aantal_Activiteiten', 
+                           color='Activiteitstype', 
+                           title=f'Aantal Sessies per Maand in {jaar} (per Sport)',
+                           color_discrete_sequence=CUSTOM_COLORS)
+        fig_jaar_sessies_per_maand.update_layout(
+            xaxis_title="Maand", 
+            yaxis_title="Aantal Sessies", 
+            xaxis={'tickmode': 'array', 'tickvals': df_sessies_jaar['Jaar_Maand'], 'ticktext': df_sessies_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, # Toon maandaanduiding
+            margin=dict(t=50, b=20, l=20, r=20),
+            legend_title_text='Sport'
+        )
+
+        # Gegevens voor maandelijkse afstand voor dit jaar
+        df_maand_jaar = agg_maand[agg_maand['Jaar'] == jaar].copy()
+
+        fig_jaar_afstand_per_maand = px.bar(df_maand_jaar, 
+                           x='Jaar_Maand', 
+                           y='Afstand_km', 
+                           color='Jaar', 
+                           title=f'Totale Afstand per Maand in {jaar}',
+                           color_discrete_sequence=CUSTOM_COLORS[:1])
+        fig_jaar_afstand_per_maand.update_layout(
+            xaxis_title="Maand", 
+            yaxis_title="Afstand (km)", 
+            xaxis={'tickmode': 'array', 'tickvals': df_maand_jaar['Jaar_Maand'], 'ticktext': df_maand_jaar['Maand'].apply(lambda x: pd.to_datetime(str(x), format='%m').strftime('%b'))}, # Toon maandaanduiding
+            margin=dict(t=50, b=20, l=20, r=20),
+            legend_title_text='Jaar',
+            showlegend=False
+        )
+        
+        # Max. Gewicht voor dit jaar
+        max_gewicht_jaar = agg_jaar_gewicht[agg_jaar_gewicht['Jaar'] == jaar]['Max_Gewicht'].iloc[0] if jaar in agg_jaar_gewicht['Jaar'].values else np.nan
+        gewicht_html = f'<p><strong>Zwaarste workout (max. getild gewicht):</strong> {max_gewicht_jaar:,.0f} kg</p>' if pd.notna(max_gewicht_jaar) else ''
+        
+        # Genereer de detailtabel voor dit jaar
+        df_detail_jaar = df_clean[df_clean['Jaar'] == jaar]
+        filter_jaar_html = genereer_filter_html(unieke_activiteiten, str(jaar))
+        jaar_detail_tabel = genereer_detail_tabel_html(df_detail_jaar)
+
+
+        jaar_secties_html += f"""
+        <div id="view-{jaar}" class="jaar-sectie" style="display: none;">
+            <h2>Overzicht {jaar}</h2>
+            <div class="summary-container">
+                {jaar_kaarten_html}
             </div>
+            
+            <div class="chart-full-width">
+                {fig_jaar_sessies_per_maand.to_html(full_html=False, include_plotlyjs='cdn')}
+            </div>
+            <div class="chart-full-width">
+                {fig_jaar_afstand_per_maand.to_html(full_html=False, include_plotlyjs='cdn')}
+            </div>
+            
+            <div class="footer-note">{gewicht_html}</div>
+            
+            <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">Toon Gemiddelde Hartslag</a>
+            {filter_jaar_html}
+            {jaar_detail_tabel}
+            
+        </div>
         """
 
-
-    # --- Finale HTML Assemblage ---
-    
-    global_section_html = f"""
-        <div id="view-Globaal" class="jaar-sectie" style="display: block;">
-            <h2>Globale Samenvatting</h2>
-            <p>Verdeling van activiteiten over de gehele dataset.</p>
-            {global_content}
-            
-            <h2>Maandelijkse Trends (Alle Jaren)</h2>
-            <p>Volg de frequentie van je trainingen door de jaren heen. Klik op de sporten in de legenda om ze aan/uit te zetten.</p>
-            <div class="card chart-container chart-container-big">
-                {plotly_html_line_all_years}
-            </div>
-        </div>
-    """
-
+    # --- Finale HTML-structuur ---
 
     dashboard_html = f"""
     <!DOCTYPE html>
@@ -325,7 +487,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Definitief Activiteitendashboard</title>
+        <title>Sport overzicht Jorden Ricour</title>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&display=swap');
             :root {{
@@ -341,150 +503,278 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 max-width: 1200px; width: 95%; margin: auto; background: #fff; padding: 30px; 
                 border-radius: 12px; box-shadow: 0 8px 8px rgba(0, 0, 0, 0.05); 
             }}
-            h1 {{ color: var(--toffee-brown); border-bottom: 3px solid var(--almond-silk); padding-bottom: 15px; font-size: 32px; }}
-            h2 {{ color: var(--sweet-salmon); margin-top: 30px; border-bottom: 1px solid var(--almond-silk); padding-bottom: 5px; font-size: 20px; }}
-            h3 {{ color: var(--muted-teal); margin-top: 25px; font-size: 18px; }}
-            h4 {{ color: var(--text-dark); margin-top: 5px; font-size: 16px; font-weight: 600; }}
-            h5 {{ color: var(--muted-teal); margin-top: 20px; font-size: 15px; font-weight: 600; }}
+            h1 {{ color: var(--toffee-brown); border-bottom: 3px solid var(--almond-silk); padding-bottom: 10px; }}
+            h2 {{ color: var(--muted-teal); font-size: 1.5em; margin-bottom: 20px; }}
             
-            /* Layouts */
-            .card-grid-2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }}
-            .card-grid-small {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }}
-            
-            /* Cards and Charts */
-            .card {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--almond-silk); }}
-            
-            /* *** UNIFIED SUMMARY CARD STYLES *** */
-            .card-summary, .card-stats {{ 
-                flex-basis: calc(50% - 5px); 
-                display: flex; 
-                flex-direction: column; 
-                justify-content: flex-start;
-                padding: 5px 10px; 
-                min-height: auto; 
-                background: #fff; 
-                border-radius: 8px; 
-                font-weight: 400; 
+            /* Knoppen Navigatie */
+            .nav-buttons {{ margin-bottom: 25px; display: flex; flex-wrap: wrap; gap: 10px; }}
+            .jaar-knop {{
+                background-color: #fff; color: var(--toffee-brown); border: 1px solid var(--toffee-brown);
+                padding: 10px 15px; cursor: pointer; border-radius: 5px; font-weight: 600;
+                transition: all 0.2s; font-family: 'Oswald', sans-serif; text-transform: uppercase;
                 font-size: var(--font-size-small);
-                box-shadow: none; 
+            }}
+            .jaar-knop:hover {{ background-color: var(--almond-silk); }}
+            .jaar-knop.active {{ background-color: var(--toffee-brown); color: #fff; }}
+            
+            /* Samenvattingskaarten */
+            .summary-container {{ 
+                display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px; 
+            }}
+            .summary-card {{
+                flex: 1 1 300px; 
+                background-color: var(--parchment); border-radius: 8px; padding: 20px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            }}
+            .card-header {{ 
+                display: flex; align-items: center; border-bottom: 1px solid var(--almond-silk);
+                padding-bottom: 10px; margin-bottom: 15px; 
+            }}
+            .activity-icon {{ font-size: 24px; margin-right: 15px; }}
+            .activity-title {{ margin: 0; font-size: 1.2em; color: var(--muted-teal); font-weight: 600; }}
+            
+            /* Statistieken binnen de kaart */
+            .stats-group {{ 
+                display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;
+                text-align: center;
+            }}
+            .stat-main {{ 
+                font-size: 0.9em; line-height: 1.3;
+            }}
+            .stat-main span {{ 
+                display: block; font-size: 1.4em; font-weight: 600; color: var(--toffee-brown); 
+                margin-top: 5px; 
             }}
             
-            .sport-card .card-stats {{
-                background: var(--almond-silk); 
+            .stats-details {{ 
+                padding-top: 10px; border-top: 1px dashed var(--almond-silk);
+            }}
+            .summary-line {{ 
+                display: flex; justify-content: space-between; align-items: center;
+                margin: 5px 0; font-size: 0.85em;
+            }}
+            .summary-icon {{ font-size: 14px; margin-right: 8px; }}
+            .summary-label {{ font-weight: 400; color: var(--text-dark); }}
+            .summary-value-small {{ font-weight: 600; color: var(--muted-teal); }}
+            
+            /* GRAFIEKEN AANPASSINGEN: Volle breedte, onder elkaar */
+            .chart-full-width {{ 
+                width: 100%; margin-bottom: 20px; 
+                background: var(--parchment); padding: 10px; border-radius: 8px;
+            }}
+
+            .footer-note {{
+                margin-top: 20px; padding: 10px; border-top: 1px solid var(--almond-silk);
+                font-size: 0.85em; color: var(--text-dark);
+            }}
+            
+            /* Filter Styling */
+            .filter-container {{
+                margin: 20px 0 10px 0; display: flex; align-items: center; gap: 10px;
                 font-weight: 600;
             }}
-
-            .card-summary h4, .card-stats h4 {{
-                margin-bottom: 5px;
-                font-size: 15px;
-            }}
-            
-            .card-summary p, .card-stats p {{
-                margin: 2px 0; 
-                font-size: 13px;
-                line-height: 1.2;
-                display: flex; 
-                align-items: center;
-                flex-wrap: wrap;
-            }}
-            .summary-icon {{
-                margin-right: 8px;
-            }}
-            .summary-value {{
-                font-size: 1.4em; 
-                font-weight: 700; 
-                color: var(--text-dark);
-                line-height: 1;
-            }}
-            .summary-label {{
-                font-weight: 400;
-                margin-right: 5px;
-            }}
-            .summary-value-small {{
-                font-weight: 600;
-                margin-left: 3px;
+            .filter-container select {{
+                padding: 8px 12px; border: 1px solid var(--muted-teal); border-radius: 5px;
+                font-family: 'Oswald', sans-serif; font-size: var(--font-size-small);
+                background-color: #fff;
             }}
 
-            /* Oude stijlen behouden */
-            .chart-container {{ height: 400px; padding: 0 !important; }}
-            .chart-pie {{ height: 350px !important; }}
-            .chart-container-big {{ height: 550px !important; padding: 0 !important; }}
-            
-            .chart-container-small {{ height: 300px; padding: 15px !important; }}
+            /* HR Privacy Styling */
+            .hr-hidden {{
+                filter: blur(4px);
+                user-select: none;
+                transition: filter 0.5s;
+            }}
+            .hr-reveal-button {{
+                display: inline-block;
+                margin-top: 10px;
+                font-size: 0.8em;
+                color: var(--sweet-salmon);
+                cursor: pointer;
+                text-decoration: underline;
+            }}
+            .hr-reveal-button:hover {{ color: var(--toffee-brown); }}
 
-            /* Tabellen */
-            .table-bordered {{ width: 100%; border-collapse: collapse; margin-top: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); font-size: var(--font-size-small); table-layout: auto; }}
-            .table-bordered th, .table-bordered td {{ padding: 8px 12px; border: 1px solid var(--almond-silk); text-align: right; }}
-            .table-bordered th {{ background-color: var(--muted-teal); color: white; text-align: center; font-weight: 600; }}
-            .table-bordered tbody tr:nth-child(even) {{ background-color: #f6f6f9; }}
-            .table-bordered tbody tr:hover {{ background-color: var(--almond-silk); }}
-            .table-bordered tbody tr:last-child {{ font-weight: bold; background-color: var(--sweet-salmon); color: white; }}
-            .detail-table th:nth-child(-n+2), .detail-table td:nth-child(-n+2) {{ text-align: left; }}
-            .sport-card {{ border: 1px solid var(--almond-silk); border-radius: 8px; padding: 15px; margin-bottom: 20px; background-color: #fff; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); }}
-            
-            /* Knoppen */
-            .knop-container {{ margin-bottom: 20px; border-bottom: 1px solid var(--almond-silk); padding-bottom: 5px; }}
-            .jaar-knop {{ background-color: #fff; color: var(--muted-teal); border: 2px solid var(--muted-teal); padding: 10px 15px; margin: 5px 5px 5px 0; cursor: pointer; border-radius: 5px; transition: all 0.3s; font-weight: 600; }}
-            .jaar-knop:hover {{ background-color: var(--muted-teal); color: white; }}
-            .jaar-knop.active {{ background-color: var(--sweet-salmon); color: white; border-color: var(--sweet-salmon); box-shadow: 0 4px 8px rgba(232, 153, 141, 0.4); }}
-            .jaar-sectie {{ margin-top: 25px; padding: 20px; border-radius: 8px; background: #fff; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); }}
+            /* Detail Tabel STYLING */
+            .detail-table-container {{ 
+                margin-top: 20px; 
+            }}
+            .detail-title {{ 
+                color: var(--toffee-brown); font-size: 1.5em; margin-bottom: 15px; 
+                border-bottom: 1px solid var(--almond-silk); padding-bottom: 5px;
+            }}
+            .activity-table {{
+                width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em;
+            }}
+            .activity-table th {{
+                background-color: var(--muted-teal); color: #fff; padding: 10px; text-align: left;
+                position: sticky; top: 0; z-index: 10;
+            }}
+            .activity-table td {{
+                padding: 10px; border-bottom: 1px solid var(--almond-silk);
+            }}
+            .activity-table tr:nth-child(even) {{
+                background-color: var(--parchment);
+            }}
+            .activity-table tr:hover {{
+                background-color: var(--almond-silk); cursor: default;
+            }}
+            .activity-table .num {{
+                text-align: right; font-weight: 600;
+            }}
+            .no-data-msg {{
+                color: var(--text-dark); font-style: italic; padding: 20px; text-align: center;
+            }}
+
+
+            /* Responsieve aanpassingen */
+            @media (max-width: 900px) {{
+                .activity-table th:nth-child(3), .activity-table td:nth-child(3) {{ 
+                    display: none; /* Verberg 'Naam Activiteit' op kleine schermen */
+                }}
+            }}
+            @media (max-width: 600px) {{
+                .summary-card {{ flex: 1 1 100%; }}
+                .stats-group {{ grid-template-columns: repeat(2, 1fr); }}
+                /* Verberg meer kolommen om de tabel leesbaar te houden op kleine schermen */
+                .activity-table th:nth-child(5), .activity-table td:nth-child(5),
+                .activity-table th:nth-child(6), .activity-table td:nth-child(6),
+                .activity-table th:nth-child(7), .activity-table td:nth-child(7),
+                .activity-table th:nth-child(8), .activity-table td:nth-child(8),
+                .activity-table th:nth-child(9), .activity-table td:nth-child(9) {{
+                    display: none; 
+                }}
+                .activity-table th:nth-child(2), .activity-table td:nth-child(2), /* Toon de sport */
+                .activity-table th:nth-child(4), .activity-table td:nth-child(4) {{
+                    display: table-cell; /* Toon minstens Afstand en Sport */
+                }}
+            }}
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>📊 Definitief Activiteitendashboard</h1>
-            <p>Geüpdatet op: <strong>{pd.Timestamp('now').strftime('%d-%m-%Y om %H:%M')}</strong></p>
-
-            <div class="knop-container">
-                {knop_html}
+            <h1>Sport Overzicht</h1>
+            
+            <div class="nav-buttons">
+                {jaar_knoppen_html}
             </div>
 
-            <div id="detail-container">
+            <div id="view-Globaal" class="jaar-sectie">
+                <h2>Totaal Overzicht</h2>
+                <div class="summary-container">
+                    {totaal_kaarten_html}
+                </div>
                 
-                {global_section_html}
+                <div class="chart-full-width">
+                    {fig_sessies_per_maand.to_html(full_html=False, include_plotlyjs='cdn')}
+                </div>
+                <div class="chart-full-width">
+                    {fig_maand.to_html(full_html=False, include_plotlyjs='cdn')}
+                </div>
                 
-                {detail_secties_html}
+                <a href="#" onclick="revealHeartRate(event)" class="hr-reveal-button">Toon Gemiddelde Hartslag</a>
+                {filter_globaal_html}
+                {totaal_detail_tabel}
             </div>
+            
+            {jaar_secties_html}
 
         </div>
 
         <script>
-            // Functie voor het schakelen tussen JAAR en GLOBAAL
-            function toonView(view_id, event) {{
+            // Wachtwoord is hardcoded in de client-side code.
+            const CORRECT_PASSWORD = 'jordenlore'; 
+
+            function showView(view_id, event) {{
                 const secties = document.querySelectorAll('.jaar-sectie');
                 const knoppen = document.querySelectorAll('.jaar-knop');
                 
-                // Verberg alle secties
                 secties.forEach(sectie => {{ sectie.style.display = 'none'; }});
-                
-                // Deactiveer alle knoppen
                 knoppen.forEach(knop => {{ knop.classList.remove('active'); }});
 
-                // Toon de gevraagde sectie
                 const actieveSectie = document.getElementById('view-' + view_id);
-                if (actieveSectie) {{ actieveSectie.style.display = 'block'; }}
+                if (actieveSectie) {{ actieveSectie.style.display = 'block'; }};
                 
-                // Activeer de aangeklikte knop
-                if (event && event.currentTarget) {{ event.currentTarget.classList.add('active'); }}
+                if (event && event.currentTarget) {{ event.currentTarget.classList.add('active'); }};
+                
+                // Reset de filter wanneer van jaar wordt gewisseld
+                const filter = document.getElementById('filter-' + view_id);
+                if (filter) {{
+                    filter.value = 'ALL';
+                    filterDetailTabel(view_id);
+                }}
             }}
             
+            function filterDetailTabel(sectie_id) {{
+                const filter = document.getElementById('filter-' + sectie_id);
+                const selected_activity = filter.value;
+                
+                const sectie = document.getElementById('view-' + sectie_id);
+                if (!sectie) return;
+
+                const table = sectie.querySelector('.activity-table');
+                if (!table) return;
+
+                const rows = table.querySelectorAll('tbody tr');
+
+                rows.forEach(row => {{
+                    const row_activity = row.getAttribute('data-activity-type');
+                    
+                    if (selected_activity === 'ALL' || row_activity === selected_activity) {{
+                        row.style.display = ''; 
+                    }} else {{
+                        row.style.display = 'none'; 
+                    }}
+                }});
+            }}
+
+            function revealHeartRate(event) {{
+                if (event) {{
+                    event.preventDefault(); // Voorkom dat de link naar de top van de pagina springt
+                }}
+
+                // Check of de hartslag al getoond wordt
+                const hiddenElements = document.querySelectorAll('.hr-hidden');
+                if (hiddenElements.length === 0) {{
+                    alert("Hartslag is al zichtbaar.");
+                    return;
+                }}
+
+                const password = prompt("Voer het wachtwoord in om de hartslaggegevens te tonen:");
+
+                if (password === CORRECT_PASSWORD) {{
+                    // Verwijder de blur class van alle verborgen elementen in het hele dashboard
+                    hiddenElements.forEach(el => {{
+                        el.classList.remove('hr-hidden');
+                    }});
+                    // Verberg de knop nu de data getoond is
+                    document.querySelectorAll('.hr-reveal-button').forEach(btn => {{
+                        btn.style.display = 'none';
+                    }});
+                }} else if (password !== null) {{
+                    alert("Onjuist wachtwoord.");
+                }}
+            }}
+
+
             // Activeer de 'Totaal Overzicht' knop en de bijbehorende weergave bij het laden
             document.addEventListener('DOMContentLoaded', () => {{
-                // Zorg ervoor dat de 'Globaal' sectie wordt getoond
                 const globaleSectie = document.getElementById('view-Globaal');
-                if (globaleSectie) {{ globaleSectie.style.display = 'block'; }}
+                if (globaleSectie) {{ globaleSectie.style.display = 'block'; }};
                 
-                // Activeer de 'Totaal Overzicht' knop
                 const globaleKnop = document.querySelector('[data-view="Globaal"]');
-                if (globaleKnop) {{ globaleKnop.classList.add('active'); }}
+                if (globaleKnop) {{ globaleKnop.classList.add('active'); }};
             }});
         </script>
     </body>
     </html>
     """
     
-    with open('dashboard.html', 'w', encoding='utf-8') as f:
+    with open(html_output, 'w', encoding='utf-8') as f:
         f.write(dashboard_html)
 
-    print(f"\n✅ Het finale dashboard is succesvol gegenereerd in 'dashboard.html' met de snelheidsfix!")
-genereer_html_dashboard('activities.csv')
+    print(f"\n✅ Het finale dashboard is succesvol gegenereerd in '{html_output}' met alle gevraagde verbeteringen!")
+
+
+# Directe aanroep van de functie om de uitvoering te garanderen
+genereer_html_dashboard()
