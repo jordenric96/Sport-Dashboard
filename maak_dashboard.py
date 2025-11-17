@@ -3,6 +3,14 @@ import numpy as np
 import plotly.express as px
 import plotly.io as pio
 
+# Definieer de kleuren die in de Plotly grafieken gebruikt moeten worden (AFKORTING ZONDER ALPHA-WAARDE)
+CUSTOM_COLORS = [
+    '#6c9a8b',  # --muted-teal
+    '#e8998d',  # --sweet-salmon
+    '#a1683a',  # --toffee-brown
+    '#eed2cc',  # --almond-silk
+]
+
 # Functie om tijd van seconden naar HH:MM:SS formaat te converteren
 def format_time(seconds):
     if pd.isna(seconds) or seconds <= 0:
@@ -45,19 +53,45 @@ def get_activity_icon(activity_type):
     if 'Fiets' in activity_type:
         return '🚴'
     elif 'Training' in activity_type:
-        return '🎾'  # Tennisbal gekozen voor 'Training'
+        return '🎾'
     elif 'Wandel' in activity_type or 'Hike' in activity_type:
         return '🚶'
     elif 'Hardloop' in activity_type:
         return '🏃'
     else:
         return '✨'
+        
+# Helperfunctie om de sport-specifieke statistieken te formatteren
+def format_sport_specific_stats(row, activity_type):
+    stats_html = ""
+    
+    # 1. Gemiddelde Hartslag
+    hr_avg = row.get('Gemiddelde_Hartslag', np.nan)
+    stats_html += f'<p class="summary-line"><span class="summary-icon">❤️</span> <span class="summary-value">{int(hr_avg):d} bpm</span></p>' if pd.notna(hr_avg) else ''
+
+    # 2. Snelste en Langste Rit/Loopsessie
+    is_ride = 'Fiets' in activity_type
+    is_run = 'Hardloop' in activity_type
+    
+    max_dist = row.get('Max_Afstand_km', np.nan)
+    max_speed = row.get('Max_Snelheid_km_u', np.nan)
+
+    # Langste Rit/Loopsessie
+    if (is_ride or is_run) and pd.notna(max_dist) and max_dist > 0:
+        label = 'Langste Rit' if is_ride else 'Langste Loop'
+        stats_html += f'<p class="summary-line"><span class="summary-icon">🗺️</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_dist:.1f} km</span></p>'
+    
+    # Snelste Rit/Loopsessie
+    if (is_ride or is_run) and pd.notna(max_speed) and max_speed > 0:
+        label = 'Snelste Rit' if is_ride else 'Snelste Loop'
+        stats_html += f'<p class="summary-line"><span class="summary-icon">⚡</span> <span class="summary-label">{label}:</span> <span class="summary-value-small">{max_speed:.1f} km/u</span></p>'
+
+    return stats_html
 
 
 def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dashboard.html'):
     """
-    Dit is de hoofdfunctie die het definitieve, stabiele dashboard genereert, 
-    met consistente stijlen voor alle summary cards.
+    Dit is de hoofdfunctie die het definitieve, stabiele dashboard genereert.
     """
     print(f"Start analyse van: {csv_bestandsnaam}...")
     try:
@@ -69,7 +103,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         print(f"Fout bij het inlezen van de data: {e}")
         return
 
-    # --- Data Voorbereiding en Opschoning (Ongewijzigd) ---
+    # --- Data Voorbereiding en Opschoning ---
     df.columns = df.columns.str.strip()
     ACTIVITEITS_KOLOMNAAM = df.columns[3] 
     df['Datum van activiteit'] = robust_date_parser_final(df['Datum van activiteit'])
@@ -88,12 +122,16 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     
     df_clean = df.dropna(subset=['Datum van activiteit']).copy()
 
-    df_clean['Gemiddelde km/u'] = df_clean['Gemiddelde snelheid']
-    needs_calc = df_clean['Gemiddelde km/u'].isna() & (df_clean['Verstreken tijd (sec)'] > 0) & (df_clean['Afstand (km)'] > 0)
-    df_clean.loc[needs_calc, 'Gemiddelde km/u'] = (df_clean.loc[needs_calc, 'Afstand (km)'] / (df_clean.loc[needs_calc, 'Verstreken tijd (sec)'] / 3600))
-    df_clean['Gemiddelde km/u'] = df_clean['Gemiddelde km/u'].round(1)
-
-    # FIX: Slimme Categorisatie (Ongewijzigd)
+    # FIX: Gemiddelde Snelheid. Gebruik ALLEEN de Moving Average van de device (Gemiddelde snelheid)
+    if 'Gemiddelde snelheid' in df_clean.columns:
+        df_clean['Gemiddelde km/u'] = df_clean['Gemiddelde snelheid'].round(1)
+    else:
+        df_clean['Gemiddelde km/u'] = np.nan
+    
+    # ******************************************************************************
+    # FIX: Slimme Categorisatie (deze sectie creëert 'Final_Activiteitstype')
+    # Dit blok MOET hier staan voordat de data wordt gegroepeerd
+    # ******************************************************************************
     df_clean['Activiteitstype_Basis'] = df_clean[ACTIVITEITS_KOLOMNAAM].astype(str).str.strip()
     df_clean['Final_Activiteitstype'] = df_clean['Activiteitstype_Basis']
     
@@ -106,33 +144,50 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     
     df_clean['Final_Activiteitstype'] = df_clean['Final_Activiteitstype'].fillna('Niet Gecategoriseerd')
     df_clean.loc[df_clean['Final_Activiteitstype'] == 'nan', 'Final_Activiteitstype'] = 'Niet Gecategoriseerd'
+    # ******************************************************************************
     
-    # --- Aggregatie en Globale Summary Cards ---
+    # --- Aggregatie voor Grafieken en Summary Cards ---
     
+    # De groupby operation is nu veilig omdat 'Final_Activiteitstype' bestaat.
     overall_summary = df_clean.groupby('Final_Activiteitstype').agg(
         Totaal_Activiteiten=('Final_Activiteitstype', 'size'),
         Totale_Afstand_km=('Afstand (km)', 'sum'),
-        Totale_Tijd_sec=('Verstreken tijd (sec)', 'sum')
+        Totale_Tijd_sec=('Verstreken tijd (sec)', 'sum'),
+        Gemiddelde_Hartslag=('Gemiddelde hartslag', 'mean'),
+        Max_Afstand_km=('Afstand (km)', 'max'),
+        Max_Snelheid_km_u=('Gemiddelde km/u', 'max') 
     ).reset_index()
 
+    # Pie Chart
     fig_pie = px.pie(
         overall_summary, values='Totaal_Activiteiten', names='Final_Activiteitstype',
-        title='Globale Distributie van Activiteiten', template="plotly_white", hole=.3, height=350
+        title='Globale Distributie van Activiteiten', template="plotly_white", hole=.3, height=350,
+        color_discrete_sequence=CUSTOM_COLORS
     )
     plotly_html_pie = pio.to_html(fig_pie, full_html=False, include_plotlyjs='cdn')
     
-    # Globale Summary Cards (gebruikt .card-summary)
+    # Summary Cards
     summary_cards_html = ""
     for index, row in overall_summary.iterrows():
         formatted_time = format_time(row['Totale_Tijd_sec'])
-        activity_icon = get_activity_icon(row['Final_Activiteitstype']) 
+        activity_type = row['Final_Activiteitstype']
+        activity_icon = get_activity_icon(activity_type) 
+        
+        # Basis statistieken
+        base_stats_html = f"""
+            <p class="summary-line"><span class="summary-icon">{activity_icon}</span> <span class="summary-value">{row['Totaal_Activiteiten']}</span></p>
+            <p class="summary-line"><span class="summary-icon">📏</span> <span class="summary-value">{row['Totale_Afstand_km']:.1f} km</span></p>
+            <p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-value">{formatted_time}</span></p>
+        """
+        
+        # Sport-specifieke statistieken (Gemiddelde HR, Langste/Snelste)
+        extra_stats_html = format_sport_specific_stats(row, activity_type)
         
         summary_cards_html += f"""
             <div class="card card-summary">
-                <h4>{row['Final_Activiteitstype']}</h4>
-                <p class="summary-line"><span class="summary-icon">{activity_icon}</span> <span class="summary-value">{row['Totaal_Activiteiten']}</span></p>
-                <p class="summary-line"><span class="summary-icon">📏</span> <span class="summary-value">{row['Totale_Afstand_km']:.1f} km</span></p>
-                <p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-value">{formatted_time}</span></p>
+                <h4>{activity_type}</h4>
+                {base_stats_html}
+                {extra_stats_html}
             </div>
         """
         
@@ -147,13 +202,26 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         </div>
     """
 
-    # --- Lijn Grafiek en Jaarlijkse Detailsecties ---
-    
+    # --- Lijn Grafiek (Maandelijkse frequentie over alle jaren) ---
     df_clean['Jaar_Maand'] = df_clean['Datum van activiteit'].dt.to_period('M').astype(str)
     df_clean['Maand_Jaar'] = df_clean['Datum van activiteit'].dt.year 
+    
+    monthly_freq = df_clean.groupby(['Jaar_Maand', 'Final_Activiteitstype']).size().reset_index(name='Aantal')
+    
     monthly_freq_per_year = df_clean.groupby(['Jaar_Maand', 'Maand_Jaar', 'Final_Activiteitstype']).size().reset_index(name='Aantal')
     monthly_freq_per_year.rename(columns={'Maand_Jaar': 'Jaar'}, inplace=True) 
 
+    fig_line_all_years = px.line(
+        monthly_freq, x='Jaar_Maand', y='Aantal', color='Final_Activiteitstype',
+        title='Maandelijkse Frequentie van Alle Sporten (Klik op Legenda om te filteren)',
+        labels={'Aantal': 'Aantal Sessies', 'Jaar_Maand': 'Datum'}, template="plotly_white", height=500,
+        color_discrete_sequence=CUSTOM_COLORS
+    )
+    fig_line_all_years.update_traces(mode='lines+markers')
+    plotly_html_line_all_years = pio.to_html(fig_line_all_years, full_html=False, include_plotlyjs='cdn')
+
+    # --- Detail Weergave per Jaar en Knoppen Generatie ---
+    
     jaren_lijst = sorted(df_clean['Jaar'].dropna().unique().astype(int).tolist(), reverse=True)
     knop_html = f'<button class="jaar-knop active" data-view="Globaal" onclick="toonView(\'Globaal\', event)">Totaal Overzicht</button>'
     detail_secties_html = ""
@@ -173,17 +241,27 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             
             df_sport['Verstreken Tijd (Geformatteerd)'] = df_sport['Verstreken tijd (sec)'].apply(format_time)
 
+            # Aggregatie voor de detailkaart
             total_activities = df_sport['Final_Activiteitstype'].size
             total_distance = df_sport['Afstand (km)'].sum()
             total_time_sec = df_sport['Verstreken tijd (sec)'].sum()
             formatted_time_sport = format_time(total_time_sec)
-            activity_icon = get_activity_icon(sport_type) # Gebruik de nieuwe functie
+            activity_icon = get_activity_icon(sport_type) 
+            
+            # Bereken aggregaties voor deze subgroep
+            stats_row = {
+                'Gemiddelde_Hartslag': df_sport['Gemiddelde hartslag'].mean(),
+                'Max_Afstand_km': df_sport['Afstand (km)'].max(),
+                'Max_Snelheid_km_u': df_sport['Gemiddelde km/u'].max()
+            }
+            extra_stats_html = format_sport_specific_stats(stats_row, sport_type)
 
             df_sport_monthly_year = monthly_freq_per_year[(monthly_freq_per_year['Final_Activiteitstype'] == sport_type) & (monthly_freq_per_year['Jaar'] == jaar)]
             
             fig_line_year_sport = px.line(
                 df_sport_monthly_year, x='Jaar_Maand', y='Aantal', title=f'Maandfrequentie {jaar}',
-                labels={'Aantal': 'Sessies', 'Jaar_Maand': 'Datum'}, template="plotly_white", height=250
+                labels={'Aantal': 'Sessies', 'Jaar_Maand': 'Datum'}, template="plotly_white", height=250,
+                color_discrete_sequence=CUSTOM_COLORS
             )
             fig_line_year_sport.update_traces(mode='lines+markers')
             plotly_html_line_year_sport = pio.to_html(fig_line_year_sport, full_html=False, include_plotlyjs='cdn')
@@ -205,6 +283,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                             <p class="summary-line"><span class="summary-icon">{activity_icon}</span> <span class="summary-value">{total_activities}</span></p>
                             <p class="summary-line"><span class="summary-icon">📏</span> <span class="summary-value">{total_distance:.1f} km</span></p>
                             <p class="summary-line"><span class="summary-icon">⏱️</span> <span class="summary-value">{formatted_time_sport}</span></p>
+                            {extra_stats_html}
                         </div>
                         <div class="chart-container-small">
                             {plotly_html_line_year_sport}
@@ -250,8 +329,8 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&display=swap');
             :root {{
-                --muted-teal: #6c9a8bff; --sweet-salmon: #e8998dff; --almond-silk: #eed2ccff;
-                --parchment: #fbf7f4ff; --toffee-brown: #a1683aff; --text-dark: #333;
+                --muted-teal: #6c9a8b; --sweet-salmon: #e8998d; --almond-silk: #eed2cc;
+                --parchment: #fbf7f4; --toffee-brown: #a1683a; --text-dark: #333;
                 --font-size-small: 13px;
             }}
             body {{ 
@@ -260,7 +339,7 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
             }}
             .container {{ 
                 max-width: 1200px; width: 95%; margin: auto; background: #fff; padding: 30px; 
-                border-radius: 12px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1); 
+                border-radius: 12px; box-shadow: 0 8px 8px rgba(0, 0, 0, 0.05); 
             }}
             h1 {{ color: var(--toffee-brown); border-bottom: 3px solid var(--almond-silk); padding-bottom: 15px; font-size: 32px; }}
             h2 {{ color: var(--sweet-salmon); margin-top: 30px; border-bottom: 1px solid var(--almond-silk); padding-bottom: 5px; font-size: 20px; }}
@@ -280,44 +359,52 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
                 flex-basis: calc(50% - 5px); 
                 display: flex; 
                 flex-direction: column; 
-                justify-content: space-between;
-                padding: 10px; /* Kleinere padding */
-                min-height: 100px;
-                background: #fff; /* Override card-stats background to white */
+                justify-content: flex-start;
+                padding: 5px 10px; 
+                min-height: auto; 
+                background: #fff; 
                 border-radius: 8px; 
                 font-weight: 400; 
                 font-size: var(--font-size-small);
-                box-shadow: none; /* Remove extra shadow */
+                box-shadow: none; 
             }}
             
-            /* Override for card-stats specific container style to make it look like .card-summary */
-            .sport-card .card-stats {
-                background: var(--almond-silk); /* Geef de stats card een lichte achtergrond */
+            .sport-card .card-stats {{
+                background: var(--almond-silk); 
                 font-weight: 600;
-            }
+            }}
 
             .card-summary h4, .card-stats h4 {{
                 margin-bottom: 5px;
                 font-size: 15px;
             }}
             
-            /* Stijl voor alle samenvattingsparagrafen (in zowel summary als stats cards) */
             .card-summary p, .card-stats p {{
-                margin: 3px 0; /* Minder verticale ruimte tussen de lijnen */
-                font-size: 14px;
+                margin: 2px 0; 
+                font-size: 13px;
                 line-height: 1.2;
                 display: flex; 
                 align-items: center;
+                flex-wrap: wrap;
             }}
             .summary-icon {{
                 margin-right: 8px;
             }}
             .summary-value {{
-                font-size: 1.4em; /* Maak het cijfer groter */
-                font-weight: 700; /* Maak het cijfer vetter */
+                font-size: 1.4em; 
+                font-weight: 700; 
                 color: var(--text-dark);
+                line-height: 1;
             }}
-            
+            .summary-label {{
+                font-weight: 400;
+                margin-right: 5px;
+            }}
+            .summary-value-small {{
+                font-weight: 600;
+                margin-left: 3px;
+            }}
+
             /* Oude stijlen behouden */
             .chart-container {{ height: 400px; padding: 0 !important; }}
             .chart-pie {{ height: 350px !important; }}
@@ -399,8 +486,5 @@ def genereer_html_dashboard(csv_bestandsnaam='activities.csv', html_output='dash
     with open('dashboard.html', 'w', encoding='utf-8') as f:
         f.write(dashboard_html)
 
-    print(f"\n✅ Het finale dashboard is succesvol gegenereerd in 'dashboard.html' met universele kaartstijlen!")
-
-
-# Directe aanroep van de functie om de uitvoering te garanderen
+    print(f"\n✅ Het finale dashboard is succesvol gegenereerd in 'dashboard.html' met de snelheidsfix!")
 genereer_html_dashboard('activities.csv')
