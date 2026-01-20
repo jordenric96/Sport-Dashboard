@@ -54,16 +54,19 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def robust_date_parser(date_series):
-    # Probeer eerst standaard formaten
+    # Stap 1: Probeer direct te parsen (voor ISO formaten)
+    # We zetten errors='coerce' zodat foute formaten NaT worden (en geen crash veroorzaken)
     dates = pd.to_datetime(date_series, errors='coerce')
     
-    # Als dat faalt (bijv. Nederlandse maandnamen), probeer handmatige mapping
-    if dates.isna().all():
+    # Stap 2: Als er veel NaT zijn (waarschijnlijk Nederlandse maanden), probeer tekstuele vervanging
+    if dates.isna().sum() > len(dates) * 0.5: # Als meer dan 50% faalt
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
         for nl, en in dutch.items(): 
             ds = ds.str.replace(nl, en, regex=False)
+        # Forceer format dag-maand-jaar voor Strava CSV stijl
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
+    
     return dates
 
 # --- HTML GENERATOREN ---
@@ -85,7 +88,6 @@ def generate_sport_cards(df_cur, df_prev):
     for sport in sorted(df_cur['Activiteitstype'].unique()):
         dfs = df_cur[df_cur['Activiteitstype'] == sport]
         
-        # Veilige manier om vorige data te pakken
         dfp = pd.DataFrame()
         if df_prev is not None and not df_prev.empty:
             dfp = df_prev[df_prev['Activiteitstype'] == sport]
@@ -98,7 +100,6 @@ def generate_sport_cards(df_cur, df_prev):
         pn = len(dfp)
         pdist = dfp['Afstand_km'].sum() if not dfp.empty else 0
         
-        # Afstand tonen of verbergen (Padel)
         dist_html = f'<div class="stat-col"><div class="label">Km</div><div class="val">{dist:,.0f}</div><div class="sub">{format_diff_html(dist, pdist, "km")}</div></div>'
         if sport == 'Padel': 
             dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
@@ -136,7 +137,6 @@ def generate_gear_section(df):
         return "<p>Geen kolom 'Uitrusting voor activiteit'</p>"
     
     dfg = df.copy()
-    # Forceer naar string en verwijder leeg/NaN
     dfg['Uitrusting voor activiteit'] = dfg['Uitrusting voor activiteit'].fillna('').astype(str)
     dfg = dfg[dfg['Uitrusting voor activiteit'].str.strip() != '']
     dfg = dfg[dfg['Uitrusting voor activiteit'].str.lower() != 'nan']
@@ -144,7 +144,6 @@ def generate_gear_section(df):
     if dfg.empty: 
         return "<p style='color:#999; text-align:center'>Geen uitrusting gevonden in de CSV.</p>"
     
-    # Bereken statistieken
     stats = dfg.groupby('Uitrusting voor activiteit').agg(
         Count=('Activiteitstype','count'), 
         Km=('Afstand_km','sum'), 
@@ -167,7 +166,6 @@ def generate_gear_section(df):
             if r['Km'] > 15000: fun_txt = "🔧 Check ketting"
             else: fun_txt = "🚴 Lekker bezig"
 
-        # Datum is hier weggehaald zoals gevraagd
         html += f"""
         <div class="kpi-card" style="display:block; padding:20px;">
             <div style="display:flex;align-items:center;gap:15px;margin-bottom:15px">
@@ -219,13 +217,11 @@ def generate_hall_of_fame(df):
     for sport in sports:
         if sport == 'Padel': continue
         
-        # Filter op serieuze data > 1km
         df_s = df[(df['Activiteitstype'] == sport) & (df['Afstand_km'] > 1.0)]
         if df_s.empty: continue
         
         style = get_sport_style(sport)
         
-        # Top 3 genereren
         t3_dist = generate_top3_list(df_s, 'Afstand_km', 'km', ascending=False)
         
         t3_speed = ""
@@ -261,7 +257,6 @@ def generate_hall_of_fame(df):
     return html
 
 def generate_detail_table(df, uid):
-    """Genereert een tabel met data van specifiek dit jaar."""
     if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten dit jaar.</p>"
     
     opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Activiteitstype'].unique())])
@@ -302,14 +297,13 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V14.0 (Checked & Fixed)...")
+    print("🚀 Start V14.1 (Crash Fix)...")
     try: 
         df = pd.read_csv('activities.csv')
     except: 
         print("❌ Geen activities.csv gevonden!")
         return
 
-    # Data Cleaning & Renaming
     nm = {
         'Datum van activiteit':'Datum',
         'Activiteitstype':'Activiteitstype',
@@ -321,39 +315,37 @@ def genereer_dashboard():
     }
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
     
-    # Numeriek maken (komma naar punt)
     for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag']:
         if c in df.columns: 
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',','.'), errors='coerce')
     
-    # Custom Types (Padel & Zwemmen)
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
 
-    # Datums
+    # Datums parse
     df['Datum'] = robust_date_parser(df['Datum'])
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
     
     genereer_manifest()
     
-    # HTML Opbouw
     nav, sects = "", ""
-    today_doy = datetime.now().dayofyear
+    
+    # HIER ZAT DE FOUT: Nu gebruiken we timetuple().tm_yday
+    today_doy = datetime.now().timetuple().tm_yday
+    
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     
     for yr in years:
         is_current_year = (yr == datetime.now().year)
         df_yr = df[df['Jaar'] == yr]
         
-        # Vorige jaar data (YTD of Totaal)
         df_prev_yr = df[df['Jaar'] == yr-1]
         if is_current_year:
             df_prev_comp = df_prev_yr[df_prev_yr['DagVanJaar'] <= today_doy]
         else:
             df_prev_comp = df_prev_yr
         
-        # Stats berekenen
         sc = {
             'n': len(df_yr), 
             'km': df_yr['Afstand_km'].sum(), 
@@ -367,7 +359,6 @@ def genereer_dashboard():
             't': df_prev_comp['Beweegtijd_sec'].sum()
         }
         
-        # KPI HTML (Let op de enkele quotes in f-strings!)
         kpis = f"""
         <div class="kpi-grid">
             {generate_kpi("Sessies", sc['n'], "🔥", format_diff_html(sc['n'], sp['n']))}
@@ -377,7 +368,6 @@ def genereer_dashboard():
         </div>
         """
         
-        # Grafiek Data
         df_cum = df_yr.sort_values('DagVanJaar')
         df_cum['C'] = df_cum['Afstand_km'].cumsum()
         
@@ -389,11 +379,9 @@ def genereer_dashboard():
             df_prev_cum = df_prev_cum[df_prev_cum['DagVanJaar'] <= today_doy]
         df_prev_cum['C'] = df_prev_cum['Afstand_km'].cumsum()
         
-        # Grafiek Tekenen
         fig = px.line(title=f"Koersverloop {yr}")
         fig.add_scatter(x=df_cum['DagVanJaar'], y=df_cum['C'], name=f"Totaal {yr}", line_color=COLORS['chart_main'], line_width=3)
         
-        # Alleen Real lijn tonen als er verschil is
         if len(df_real) > 0 and sc['km'] != df_real['Afstand_km'].sum():
              fig.add_scatter(x=df_real['DagVanJaar'], y=df_real['C'], name=f"Buiten (Real)", line_color=COLORS['chart_sub'], line_dash='dot', line_width=2)
         
@@ -402,7 +390,6 @@ def genereer_dashboard():
             
         fig.update_layout(template='plotly_white', margin=dict(t=30,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
         
-        # Top 3 & Tabel voor DIT jaar
         top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(df_yr)}'
         tbl = generate_detail_table(df_yr, str(yr))
 
@@ -421,7 +408,6 @@ def genereer_dashboard():
         </div>
         """
 
-    # Totaal Tab (FIXED: Enkele quotes gebruikt)
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
     sects += f"""
@@ -437,11 +423,9 @@ def genereer_dashboard():
     </div>
     """
     
-    # Garage Tab
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
     
-    # HOF Tab
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
     sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
 
@@ -457,7 +441,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V14.0) gegenereerd: Validated.")
+    print("✅ Dashboard (V14.1) gegenereerd: Validated.")
 
 if __name__ == "__main__":
     genereer_dashboard()
