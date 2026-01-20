@@ -6,6 +6,10 @@ import plotly.io as pio
 from datetime import datetime
 import json
 import os
+import warnings
+
+# Onderdruk specifieke warnings voor schonere logs
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- CONFIGURATIE ---
 COLORS = {
@@ -54,17 +58,15 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def robust_date_parser(date_series):
-    # Stap 1: Probeer direct te parsen (voor ISO formaten)
-    # We zetten errors='coerce' zodat foute formaten NaT worden (en geen crash veroorzaken)
-    dates = pd.to_datetime(date_series, errors='coerce')
+    # Stap 1: Probeer te parsen met dag eerst (Europees formaat)
+    dates = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
     
-    # Stap 2: Als er veel NaT zijn (waarschijnlijk Nederlandse maanden), probeer tekstuele vervanging
-    if dates.isna().sum() > len(dates) * 0.5: # Als meer dan 50% faalt
+    # Stap 2: Fallback voor Nederlandse maandnamen
+    if dates.isna().sum() > len(dates) * 0.5:
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
         for nl, en in dutch.items(): 
             ds = ds.str.replace(nl, en, regex=False)
-        # Forceer format dag-maand-jaar voor Strava CSV stijl
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
     
     return dates
@@ -297,13 +299,14 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V14.1 (Crash Fix)...")
+    print("🚀 Start V14.2 (Missing Column Fix)...")
     try: 
         df = pd.read_csv('activities.csv')
     except: 
         print("❌ Geen activities.csv gevonden!")
         return
 
+    # HIER ZAT HET PROBLEEM: Snelheid en Max Snelheid toegevoegd
     nm = {
         'Datum van activiteit':'Datum',
         'Activiteitstype':'Activiteitstype',
@@ -311,11 +314,14 @@ def genereer_dashboard():
         'Afstand':'Afstand_km',
         'Totale stijging':'Hoogte_m',
         'Gemiddelde hartslag':'Gemiddelde_Hartslag',
+        'Gemiddelde snelheid': 'Gemiddelde_Snelheid_km_u',
+        'Max. snelheid': 'Max_Snelheid_km_u',
         'Uitrusting voor activiteit':'Uitrusting voor activiteit'
     }
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
     
-    for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag']:
+    # Zorg dat snelheid ook echt getallen zijn
+    for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u']:
         if c in df.columns: 
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',','.'), errors='coerce')
     
@@ -330,10 +336,7 @@ def genereer_dashboard():
     genereer_manifest()
     
     nav, sects = "", ""
-    
-    # HIER ZAT DE FOUT: Nu gebruiken we timetuple().tm_yday
     today_doy = datetime.now().timetuple().tm_yday
-    
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     
     for yr in years:
@@ -441,7 +444,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V14.1) gegenereerd: Validated.")
+    print("✅ Dashboard (V14.2) gegenereerd: Missing Column Fix.")
 
 if __name__ == "__main__":
     genereer_dashboard()
