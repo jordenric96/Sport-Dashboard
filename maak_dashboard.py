@@ -71,16 +71,7 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def generate_kpi(title, val, icon="", diff=""):
-    return f"""
-    <div class="kpi-card">
-        <div class="kpi-icon-box">{icon}</div>
-        <div class="kpi-content">
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value">{val}</div>
-            <div class="kpi-sub">{diff}</div>
-        </div>
-    </div>
-    """
+    return f"""<div class="kpi-card"><div class="kpi-icon-box">{icon}</div><div class="kpi-content"><div class="kpi-title">{title}</div><div class="kpi-value">{val}</div><div class="kpi-sub">{diff}</div></div></div>"""
 
 def robust_date_parser(date_series):
     dates = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
@@ -162,10 +153,15 @@ def generate_gear_section(df):
 
 def generate_hall_of_fame(df):
     html = '<div class="hof-grid">'
-    for cat in ['Fiets', 'Virtueel', 'Hardlopen']:
-        df_s = df[(df['Categorie'] == cat) & (df['Afstand_km'] > 1.0)].copy()
+    # Fix: Verwijder rijen zonder datum om de 'NaT' error te voorkomen
+    df_hof = df.dropna(subset=['Datum']).copy()
+    
+    for cat in ['Fiets', 'Virtueel', 'Hardlopen', 'Zwemmen']:
+        # Filter aangepast naar > 0.0 voor testsessies
+        df_s = df_hof[(df_hof['Categorie'] == cat) & (df_hof['Afstand_km'] >= 0.0)].copy()
         if df_s.empty: continue
         style = get_sport_style(cat)
+        
         def get_top3(col, unit, is_pace=False):
             d_sorted = df_s.sort_values(col, ascending=False).head(3)
             res = ""
@@ -176,6 +172,7 @@ def generate_hall_of_fame(df):
                 val_str = f"{v:.1f} {unit}" if not is_pace else f"{int((3600/v)//60)}:{int((3600/v)%60):02d} /km"
                 res += f'<div class="top3-item"><span>{medals[i]} {val_str}</span><span class="date">{date}</span></div>'
             return res
+            
         html += f"""<div class="hof-card"><div class="hof-header" style="color:{style['color']}">{style['icon']} {cat}</div><div class="hof-sec"><div class="sec-label">Langste</div>{get_top3('Afstand_km', 'km')}</div><div class="hof-sec"><div class="sec-label">Snelste ⚡</div>{get_top3('Gemiddelde_Snelheid_km_u', 'km/u' if cat!='Hardlopen' else '', cat=='Hardlopen')}</div></div>"""
     return html + "</div>"
 
@@ -191,11 +188,24 @@ def create_monthly_charts(df, year):
         f.add_trace(go.Bar(x=months, y=c_m, name=str(year), marker_color=color))
         f.update_layout(title=title, template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
         return f.to_html(full_html=False, include_plotlyjs="cdn")
-    return f'<div class="chart-box">{bar("Fiets", "🚴 Afstand Fietsen per Maand", COLORS["bike_out"])}</div><div class="chart-box" style="margin-top:15px;">{bar("Hardlopen", "🏃 Afstand Lopen per Maand", COLORS["run"])}</div>'
+    return f'<div class="chart-box">{bar("Fiets", "🚴 Maandelijkse Afstand Fietsen", COLORS["bike_out"])}</div><div class="chart-box" style="margin-top:15px;">{bar("Hardlopen", "🏃 Maandelijkse Afstand Lopen", COLORS["run"])}</div>'
+
+def create_evolution_chart(df):
+    # Jaarlijkse evolutie op basis van alle sporten
+    stats = df.groupby(['Jaar', 'Categorie'])['Afstand_km'].sum().unstack(fill_value=0)
+    fig = go.Figure()
+    if 'Fiets' in stats.columns: fig.add_trace(go.Bar(x=stats.index, y=stats['Fiets'], name='Fietsen', marker_color=COLORS['bike_out']))
+    if 'Hardlopen' in stats.columns: fig.add_trace(go.Bar(x=stats.index, y=stats['Hardlopen'], name='Lopen', marker_color=COLORS['run']))
+    fig.update_layout(title="Jaarlijkse Evolutie (Afstand)", template='plotly_white', barmode='group', height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.2))
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
+
+def genereer_manifest():
+    m = {"name":"Sport Jorden","short_name":"Sport","start_url":"./dashboard.html","display":"standalone","background_color":"#f8fafc","theme_color":"#0f172a","icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]}
+    with open('manifest.json', 'w') as f: json.dump(m, f)
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V33.1 (Fixing NameError & Restoring Garage)...")
+    print("🚀 Start V33.2 (Fixing NaT Error & Lower Filters)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
     
@@ -209,6 +219,8 @@ def genereer_dashboard():
     df['Jaar'] = df['Datum'].dt.year
     df['Gemiddelde_Snelheid_km_u'] = (df['Afstand_km'] / (df['Beweegtijd_sec'] / 3600)).replace([np.inf, -np.inf], 0)
     
+    genereer_manifest()
+    
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     nav, sects = "", ""
     stats_box = generate_stats_box(df, datetime.now().year)
@@ -220,7 +232,7 @@ def genereer_dashboard():
         
         kpis = f"""<div class="kpi-grid">
             {generate_kpi("Sessies", len(df_yr), "🔥", format_diff_html(len(df_yr), len(df_prev_comp)))}
-            {generate_kpi("Afstand", f"{df_yr['Afstand_km'].sum():,.0f} km", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"))}
+            {generate_kpi("Afstand", f"{df_yr['Afstand_km'].sum():,.1f} km", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"))}
             {generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️")}
         </div>"""
         
@@ -230,7 +242,10 @@ def genereer_dashboard():
             <h3 class="section-subtitle">Maandoverzicht</h3>{create_monthly_charts(df, int(yr))}
         </div>"""
 
+    nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
+    
+    sects += f"""<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2>{create_evolution_chart(df)}</div>"""
     sects += f"""<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>"""
 
     html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Sport Dashboard</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
@@ -248,13 +263,16 @@ def genereer_dashboard():
     .goal-bar {{ background:#f1f5f9; height:8px; border-radius:4px; overflow:hidden; }}
     .goal-bar div {{ height:100%; border-radius:4px; }}
     .streak-row {{ display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; }}
+    .streak-row .val {{ font-weight:700; color:var(--primary); }}
     .kpi-grid, .sport-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px; }}
     .kpi-card, .chart-box, .hof-card{{background:white;border-radius:16px;padding:15px;border:1px solid #f1f5f9;box-shadow:0 1px 3px rgba(0,0,0,0.02)}}
     .hof-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); gap:15px; }}
     .hof-header {{ font-weight:700; font-size:16px; margin-bottom:15px; }}
     .sec-label {{ font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px; }}
-    .top3-item {{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }}
+    .top3-item {{ display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:4px; }}
+    .date {{ font-size:10px; color:#94a3b8; }}
     .gold-banner {{ background:linear-gradient(135deg, var(--gold) 0%, #f59e0b 100%); color:white; padding:15px; border-radius:12px; margin-bottom:15px; cursor:pointer; font-weight:700; }}
+    .section-subtitle {{ font-size:12px; color:#94a3b8; text-transform:uppercase; margin:20px 0 10px 0; }}
     </style></head><body><div class="container">
     <div class="gold-banner" onclick="toggleHOF()">🏆 Eregalerij & Records <span style="float:right">▼</span></div>
     <div id="hof-container" style="display:none; margin-bottom:20px;">{generate_hall_of_fame(df)}</div>
@@ -272,7 +290,7 @@ def genereer_dashboard():
     }}
     </script></body></html>"""
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V33.1) gegenereerd.")
+    print("✅ Dashboard (V33.2) gegenereerd.")
 
 if __name__ == "__main__":
     genereer_dashboard()
