@@ -17,12 +17,12 @@ TYPE_MAPPING = {
     'Run': 'Hardloopsessie', 'Walk': 'Wandeling', 'Hike': 'Hike',
     'WeightTraining': 'Padel', 'Workout': 'Padel', 'Swim': 'Zwemmen',
     'GravelRide': 'Fietsrit', 'TrailRun': 'Hardloopsessie',
-    'Elliptical': 'Training', 'Yoga': 'Training' # Extra veiligheid
+    'Elliptical': 'Training', 'Yoga': 'Training'
 }
 
 def get_access_token():
     if not CLIENT_ID or not CLIENT_SECRET or not REFRESH_TOKEN:
-        print("❌ FOUT: Secrets ontbreken. Check je GitHub Secrets.")
+        print("❌ FOUT: Secrets ontbreken.")
         sys.exit(1)
     
     url = "https://www.strava.com/oauth/token"
@@ -36,17 +36,14 @@ def get_access_token():
         return r.json()['access_token']
     except Exception as e:
         print(f"❌ Token error: {e}")
-        # Print response voor debuggen (maar pas op met secrets in logs)
         try: print(r.text) 
         except: pass
         sys.exit(1)
 
 def get_gear_map(token):
-    """Haalt namen van fietsen en schoenen op."""
     url = "https://www.strava.com/api/v3/athlete"
     headers = {'Authorization': f"Bearer {token}"}
     gear_map = {}
-    
     try:
         r = requests.get(url, headers=headers)
         r.raise_for_status()
@@ -54,9 +51,8 @@ def get_gear_map(token):
         for bike in data.get('bikes', []): gear_map[bike['id']] = bike['name']
         for shoe in data.get('shoes', []): gear_map[shoe['id']] = shoe['name']
         print(f"✅ Materiaal lijst opgehaald ({len(gear_map)} items).")
-    except Exception as e:
-        print(f"⚠️ Kon materiaal niet ophalen (geen ramp): {e}")
-    
+    except:
+        print("⚠️ Kon materiaal niet ophalen (Token permissie issue?). We gebruiken bestaande CSV data als backup.")
     return gear_map
 
 def format_date(date_str):
@@ -66,63 +62,75 @@ def format_date(date_str):
                    7:'jul', 8:'aug', 9:'sep', 10:'okt', 11:'nov', 12:'dec'}
         return f"{dt.day} {maanden[dt.month]} {dt.year}, {dt.strftime('%H:%M:%S')}"
     except:
-        return date_str # Fallback
+        return date_str
 
 def safe_float(value, multiplier=1.0):
-    """Veilige conversie naar getal, voorkomt crashes bij None"""
     if value is None: return 0.0
-    try:
-        return float(value) * multiplier
-    except:
-        return 0.0
+    try: return float(value) * multiplier
+    except: return 0.0
 
 def update_csv():
-    print("🔄 Start Volledige Strava Sync (Veilige Modus)...")
+    print("🔄 Start Slimme Update (Behoud Data)...")
     token = get_access_token()
     gear_map = get_gear_map(token)
     
+    # 1. Lees bestaande CSV in voor backup van materiaal
+    old_gear_data = {}
+    if os.path.exists(CSV_FILE):
+        try:
+            df_old = pd.read_csv(CSV_FILE)
+            # Maak een dictionary: ID -> MateriaalNaam
+            if 'Activiteits-ID' in df_old.columns and 'Uitrusting voor activiteit' in df_old.columns:
+                # Zorg dat we strings hebben
+                df_old['Activiteits-ID'] = df_old['Activiteits-ID'].astype(str)
+                df_old['Uitrusting voor activiteit'] = df_old['Uitrusting voor activiteit'].fillna('').astype(str)
+                
+                for _, row in df_old.iterrows():
+                    gear_val = row['Uitrusting voor activiteit'].strip()
+                    if gear_val and gear_val.lower() != 'nan':
+                        old_gear_data[row['Activiteits-ID']] = gear_val
+            print(f"💾 {len(old_gear_data)} materiaal-items uit oude CSV veiliggesteld.")
+        except Exception as e:
+            print(f"⚠️ Kon oude CSV niet lezen: {e}")
+
+    # 2. Haal nieuwe data op
     all_activities = []
     page = 1
     headers = {'Authorization': f"Bearer {token}"}
     
-    # Loop door alle pagina's
     while True:
         print(f"   📄 Ophalen pagina {page}...")
-        url = f"https://www.strava.com/api/v3/athlete/activities?per_page=200&page={page}"
-        
         try:
-            r = requests.get(url, headers=headers)
+            r = requests.get(f"https://www.strava.com/api/v3/athlete/activities?per_page=200&page={page}", headers=headers)
             r.raise_for_status()
             data = r.json()
-            
-            if not data: 
-                break # Klaar!
-                
+            if not data: break
             all_activities.extend(data)
             page += 1
-            time.sleep(1) # Pauze om API limieten te respecteren
-            
+            time.sleep(1)
         except Exception as e:
             print(f"❌ Fout bij pagina {page}: {e}")
             break
 
-    print(f"✅ Totaal {len(all_activities)} activiteiten binnengehaald.")
-
+    # 3. Samenvoegen
     new_rows = []
     for act in all_activities:
         try:
             act_id = str(act['id'])
             
-            # Materiaal veilig ophalen
+            # Slimme Materiaal Selectie
+            # Stap A: Kijk of Strava het weet
             gear_id = act.get('gear_id')
             gear_name = gear_map.get(gear_id, "")
             
-            # Snelheid veilig berekenen (voorkomt crash bij manual entry)
+            # Stap B: Als Strava het niet weet, kijk in de backup
+            if not gear_name and act_id in old_gear_data:
+                gear_name = old_gear_data[act_id]
+            
             avg_speed = safe_float(act.get('average_speed'), 3.6)
             max_speed = safe_float(act.get('max_speed'), 3.6)
             dist_km = safe_float(act.get('distance'), 0.001)
             
-            # Data samenstellen
             row = {
                 'Activiteits-ID': act_id,
                 'Datum van activiteit': format_date(act.get('start_date_local', '')),
@@ -136,20 +144,17 @@ def update_csv():
                 'Totale stijging': act.get('total_elevation_gain', 0),
                 'Gemiddelde hartslag': act.get('average_heartrate', ''),
                 'Calorieën': act.get('kilojoules', 0),
-                'Uitrusting voor activiteit': gear_name
+                'Uitrusting voor activiteit': gear_name # Nu met backup!
             }
             new_rows.append(row)
-        except Exception as e:
-            print(f"⚠️ Rij overgeslagen wegens fout: {e}")
-            continue
+        except: continue
 
     if new_rows:
         df_new = pd.DataFrame(new_rows)
-        # Sla op (overschrijf alles)
         df_new.to_csv(CSV_FILE, index=False)
-        print("✅ CSV succesvol herbouwd met alle historie!")
+        print("✅ CSV bijgewerkt (Materiaal behouden!).")
     else:
-        print("⚠️ Geen data gevonden om op te slaan.")
+        print("⚠️ Geen data.")
 
 if __name__ == "__main__":
     update_csv()
