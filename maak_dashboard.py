@@ -8,15 +8,13 @@ import json
 import os
 import warnings
 
-# Onderdruk onnodige warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- CONFIGURATIE ---
 COLORS = {
     'primary': '#0f172a', 
     'gold': '#d4af37', 
-    'silver': '#94a3b8', 
-    'bronze': '#b45309',
+    'gold_bg': '#f59e0b',
     'bg': '#f8fafc', 
     'card': '#ffffff', 
     'text': '#1e293b', 
@@ -78,6 +76,38 @@ def generate_kpi(title, val, icon="", diff=""):
             <div class="kpi-value">{val}</div>
             <div class="kpi-sub">{diff}</div>
         </div>
+    </div>
+    """
+
+def generate_gold_banner(df):
+    """Genereert een gele balk met de absolute records"""
+    items = []
+    
+    # 1. Langste Fietsrit
+    fiets = df[df['Activiteitstype'].str.contains('Fiets', case=False, na=False)]
+    if not fiets.empty:
+        max_dist = fiets['Afstand_km'].max()
+        items.append(f"🚴 Langste: <strong>{max_dist:.1f} km</strong>")
+        max_spd = fiets['Gemiddelde_Snelheid_km_u'].max()
+        if max_spd > 0: items.append(f"⚡ Snelste: <strong>{max_spd:.1f} km/u</strong>")
+
+    # 2. Langste Run
+    loop = df[df['Activiteitstype'].str.contains('Hardloop', case=False, na=False)]
+    if not loop.empty:
+        max_dist = loop['Afstand_km'].max()
+        items.append(f"🏃 Langste: <strong>{max_dist:.1f} km</strong>")
+        max_spd = loop['Gemiddelde_Snelheid_km_u'].max()
+        if max_spd > 0:
+            pace = 3600 / max_spd
+            items.append(f"⚡ Snelste: <strong>{int(pace//60)}:{int(pace%60):02d} /km</strong>")
+            
+    # HTML Bouwen
+    items_html = "".join([f'<div class="gold-item">{i}</div>' for i in items])
+    
+    return f"""
+    <div class="gold-banner">
+        <div class="gold-icon">🏆</div>
+        <div class="gold-scroller">{items_html}</div>
     </div>
     """
 
@@ -146,28 +176,31 @@ def generate_gear_section(df):
         pct = min(100, (r['Km']/max_k)*100)
         col = COLORS['success'] if pct < 50 else (COLORS['gold'] if pct < 80 else COLORS['danger'])
         
-        fun_txt = "🔥 Going strong"
+        fun_txt = ""
         if icon == '👟':
             if r['Km'] > 800: fun_txt = "💀 Tijd voor nieuwe?"
             elif r['Km'] < 100: fun_txt = "✨ Inlopen"
         else:
             if r['Km'] > 15000: fun_txt = "🔧 Check ketting"
-            else: fun_txt = "🚴 Lekker bezig"
+            else: fun_txt = "🚴"
 
+        # NIEUWE OPMAAK GARAGE: Geen datum, meer ruimte
         html += f"""
-        <div class="kpi-card" style="display:block; padding:20px;">
-            <div style="display:flex;align-items:center;gap:15px;margin-bottom:15px">
-                <div style="font-size:28px;background:#f1f5f9;width:54px;height:54px;display:flex;align-items:center;justify-content:center;border-radius:12px">{icon}</div>
+        <div class="kpi-card" style="display:block; padding:24px;">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+                <div style="font-size:32px;background:#f1f5f9;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border-radius:16px">{icon}</div>
                 <div>
-                    <div style="font-weight:700;font-size:15px;color:{COLORS['text']};margin-bottom:4px;line-height:1.2">{r['Uitrusting voor activiteit']}</div>
-                    <div style="font-size:12px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div>
+                    <div style="font-weight:700;font-size:16px;color:{COLORS['text']};margin-bottom:4px;line-height:1.2">{r['Uitrusting voor activiteit']}</div>
+                    <div style="font-size:13px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div>
                 </div>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:10px">
-                <div style="font-size:22px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']};font-weight:500">km</span></div>
-                <div style="font-size:11px;font-weight:600;color:{col}">{fun_txt}</div>
+            
+            <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:12px">
+                <div style="font-size:24px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']};font-weight:500">km</span></div>
+                <div style="font-size:12px;font-weight:600;color:{col}">{fun_txt}</div>
             </div>
-            <div style="background:#e2e8f0;height:6px;border-radius:3px;overflow:hidden">
+            
+            <div style="background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden">
                 <div style="width:{pct}%;background:{col};height:100%"></div>
             </div>
         </div>"""
@@ -225,10 +258,8 @@ def generate_detail_table(df, uid):
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
         st = get_sport_style(r['Activiteitstype'])
         hr = f"{r['Gemiddelde_Hartslag']:.0f}" if pd.notna(r['Gemiddelde_Hartslag']) else "-"
-        if pd.notna(r["Datum"]):
-            date_str = r["Datum"].strftime("%d-%m-%y")
-        else:
-            date_str = "-"
+        if pd.notna(r["Datum"]): date_str = r["Datum"].strftime("%d-%m-%y")
+        else: date_str = "-"
         rows += f'<tr data-sport="{r["Activiteitstype"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{date_str}</td><td>{r["Activiteitstype"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
 
     return f"""<div class="detail-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px"><h3 style="margin:0;font-size:16px;">Logboek</h3><select id="sf-{uid}" onchange="filterTable('{uid}')" style="padding:5px;border-radius:6px;border:1px solid #ddd"><option value="ALL">Alles</option>{opts}</select></div><div style="overflow-x:auto"><table id="dt-{uid}"><thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead><tbody>{rows}</tbody></table></div></div>"""
@@ -239,27 +270,20 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V16.0 (Specific Tables & Top 3)...")
+    print("🚀 Start V17.0 (Golden Banner & Clean Garage)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
     nm = {
-        'Datum van activiteit': 'Datum',
-        'Naam activiteit': 'Naam',
-        'Activiteitstype': 'Activiteitstype',
-        'Beweegtijd': 'Beweegtijd_sec',
-        'Afstand': 'Afstand_km',
-        'Totale stijging': 'Hoogte_m',
-        'Gemiddelde hartslag': 'Gemiddelde_Hartslag',
-        'Gemiddelde snelheid': 'Gemiddelde_Snelheid_km_u',
-        'Max. snelheid': 'Max_Snelheid_km_u',
-        'Uitrusting voor activiteit': 'Uitrusting voor activiteit'
+        'Datum van activiteit': 'Datum', 'Naam activiteit': 'Naam', 'Activiteitstype': 'Activiteitstype',
+        'Beweegtijd': 'Beweegtijd_sec', 'Afstand': 'Afstand_km', 'Totale stijging': 'Hoogte_m',
+        'Gemiddelde hartslag': 'Gemiddelde_Hartslag', 'Gemiddelde snelheid': 'Gemiddelde_Snelheid_km_u',
+        'Max. snelheid': 'Max_Snelheid_km_u', 'Uitrusting voor activiteit': 'Uitrusting voor activiteit'
     }
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
     
     for c in ['Afstand_km', 'Hoogte_m', 'Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u']:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
+        if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
 
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
@@ -274,9 +298,12 @@ def genereer_dashboard():
     today_doy = datetime.now().timetuple().tm_yday
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     
+    # --- NIEUW: Gouden Banner ---
+    gold_banner = generate_gold_banner(df)
+    
     for yr in years:
         is_cur = (yr == datetime.now().year)
-        df_yr = df[df['Jaar'] == yr] # <--- DIT IS CRUCIAAL: Alleen data van dit jaar
+        df_yr = df[df['Jaar'] == yr]
         
         df_prev_yr = df[df['Jaar'] == yr-1]
         if is_cur: df_prev_comp = df_prev_yr[df_prev_yr['DagVanJaar'] <= today_doy]
@@ -302,10 +329,7 @@ def genereer_dashboard():
         if not dfpc.empty: fig.add_scatter(x=dfpc['DagVanJaar'], y=dfpc['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
         fig.update_layout(template='plotly_white', margin=dict(t=30,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
         
-        # TOP 3 SPECIFIEK VOOR DIT JAAR (met df_yr)
         top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(df_yr)}'
-        
-        # TABEL SPECIFIEK VOOR DIT JAAR (met df_yr)
         tbl = generate_detail_table(df_yr, str(yr))
 
         nav += f'<button class="nav-btn {"active" if is_cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
@@ -322,11 +346,48 @@ def genereer_dashboard():
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
     
-    # HOF Tab (All Time)
-    nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
-    sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
+    # CSS & HTML
+    html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="1768922516256~2.jpg"><title>Sport Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
+    :root{{--primary:{COLORS['primary']};--gold:{COLORS['gold']};--gold-bg:{COLORS['gold_bg']};--bg:{COLORS['bg']};--card:{COLORS['card']};--text:{COLORS['text']}}}
+    body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:80px;-webkit-tap-highlight-color:transparent}}
+    .container{{max-width:1000px;margin:0 auto}}
+    h1{{margin:0;font-size:24px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px}}
+    h1::after{{content:'';display:block;width:40px;height:3px;background:var(--gold);border-radius:2px}}
+    .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}}
+    .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;transition:0.2s}}
+    
+    /* GOUDEN BANNER */
+    .gold-banner {{ background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bg) 100%); color:white; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px; box-shadow:0 4px 6px -1px rgba(212, 175, 55, 0.3); }}
+    .gold-icon {{ font-size:24px; }}
+    .gold-scroller {{ display:flex; gap:15px; overflow-x:auto; white-space:nowrap; scrollbar-width:none; }}
+    .gold-scroller::-webkit-scrollbar {{ display:none; }}
+    .gold-item {{ font-size:13px; font-weight:500; background:rgba(255,255,255,0.2); padding:4px 10px; border-radius:8px; }}
+    .gold-item strong {{ font-weight:700; color:#fff; }}
 
-    html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="1768922516256~2.jpg"><title>Sport Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>:root{{--primary:{COLORS['primary']};--gold:{COLORS['gold']};--bg:{COLORS['bg']};--card:{COLORS['card']};--text:{COLORS['text']}}}body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:80px;-webkit-tap-highlight-color:transparent}}.container{{max-width:1000px;margin:0 auto}}h1{{margin:0;font-size:24px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px}}h1::after{{content:'';display:block;width:40px;height:3px;background:var(--gold);border-radius:2px}}.header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}.lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;transition:0.2s}}.nav{{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px;scrollbar-width:none}}.nav::-webkit-scrollbar{{display:none}}.nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:600;color:#64748b;transition:0.2s}}.nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}.kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:25px}}.sport-grid,.hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-bottom:25px}}.kpi-card,.sport-card,.chart-box,.detail-section,.hof-card{{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,0.03);border:1px solid #f1f5f9}}.sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}.sport-icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}}.stat-main{{display:flex;margin-bottom:12px}}.stat-col{{flex:1}}.stat-divider{{width:1px;background:#e2e8f0;margin:0 12px}}.label{{font-size:10px;text-transform:uppercase;color:#94a3b8;font-weight:700}}.val{{font-size:18px;font-weight:700;color:var(--primary)}}.sub{{font-size:11px;margin-top:2px}}.sport-details{{background:#f8fafc;padding:10px;border-radius:8px;font-size:12px}}.stat-row{{display:flex;justify-content:space-between;margin-bottom:4px;color:#64748b}}.stat-row strong{{color:var(--text)}}table{{width:100%;border-collapse:collapse;font-size:13px}}th{{text-align:left;color:#94a3b8;font-size:10px;text-transform:uppercase;padding:10px}}td{{padding:10px;border-bottom:1px solid #f1f5f9}}.num{{text-align:right;font-weight:600}}.hr-blur{{filter:blur(4px);background:#e2e8f0;border-radius:4px;color:transparent;transition:0.3s}}.section-title{{font-size:18px;font-weight:700;margin-bottom:15px;color:var(--primary)}}.section-subtitle{{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:25px 0 10px 0}}
+    .nav{{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px;scrollbar-width:none}}.nav::-webkit-scrollbar{{display:none}}
+    .nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:600;color:#64748b;transition:0.2s}}
+    .nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}
+    .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:25px}}
+    .sport-grid,.hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-bottom:25px}}
+    .kpi-card,.sport-card,.chart-box,.detail-section,.hof-card{{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,0.03);border:1px solid #f1f5f9}}
+    .sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}
+    .sport-icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}}
+    .stat-main{{display:flex;margin-bottom:12px}}
+    .stat-col{{flex:1}}
+    .stat-divider{{width:1px;background:#e2e8f0;margin:0 12px}}
+    .label{{font-size:10px;text-transform:uppercase;color:#94a3b8;font-weight:700}}
+    .val{{font-size:18px;font-weight:700;color:var(--primary)}}
+    .sub{{font-size:11px;margin-top:2px}}
+    .sport-details{{background:#f8fafc;padding:10px;border-radius:8px;font-size:12px}}
+    .stat-row{{display:flex;justify-content:space-between;margin-bottom:4px;color:#64748b}}
+    .stat-row strong{{color:var(--text)}}
+    table{{width:100%;border-collapse:collapse;font-size:13px}}
+    th{{text-align:left;color:#94a3b8;font-size:10px;text-transform:uppercase;padding:10px}}
+    td{{padding:10px;border-bottom:1px solid #f1f5f9}}
+    .num{{text-align:right;font-weight:600}}
+    .hr-blur{{filter:blur(4px);background:#e2e8f0;border-radius:4px;color:transparent;transition:0.3s}}
+    .section-title{{font-size:18px;font-weight:700;margin-bottom:15px;color:var(--primary)}}
+    .section-subtitle{{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:25px 0 10px 0}}
     .hof-card {{ display:flex; flex-direction:column; gap:12px; }}
     .hof-section {{ border-bottom:1px solid #f1f5f9; padding-bottom:8px; }}
     .hof-label {{ font-size:10px; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:6px; }}
@@ -335,10 +396,10 @@ def genereer_dashboard():
     .medal {{ font-size:14px; margin-right:6px; }}
     .top3-val {{ font-weight:700; color:var(--text); }}
     .top3-date {{ font-size:11px; color:#94a3b8; }}
-    </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
+    </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>{gold_banner}<div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V16.0) gegenereerd: Top 3 per jaar & Separate Tabellen.")
+    print("✅ Dashboard (V17.0) gegenereerd: Golden Banner & Clean Garage.")
 
 if __name__ == "__main__":
     genereer_dashboard()
