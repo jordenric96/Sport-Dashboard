@@ -193,6 +193,7 @@ def calculate_streaks(df):
         last = wk_dates[-1]
         now_wk = pd.Timestamp.now().to_period('W').start_time
         
+        # Flexibele check: als laatste activiteit < 8 dagen geleden is
         if (now_wk - last).days <= 7:
             cur_wk_streak = 1
             for i in range(len(wk_dates)-2, -1, -1):
@@ -316,6 +317,35 @@ def generate_sport_cards(df_cur, df_prev):
         html += f"""<div class="sport-card"><div class="sport-header"><div class="sport-icon-circle" style="color:{st['color']};background:{st['color']}20">{st['icon']}</div><h3>{cat}</h3></div>
         <div class="sport-body"><div class="stat-main"><div class="stat-col"><div class="label">Sessies</div><div class="val">{n}</div><div class="sub">{format_diff_html(n, pn)}</div></div><div class="stat-divider"></div>{dist_html}</div>
         <div class="sport-details"><div class="stat-row"><span>Tijd</span> <strong>{format_time(tm)}</strong></div>{hr_html}</div></div></div>"""
+    return html + '</div>'
+
+def generate_gear_section(df):
+    """Genereert de Garage sectie (Equipment)"""
+    if 'Uitrusting voor activiteit' not in df.columns: return "<p>Geen data</p>"
+    dfg = df.copy()
+    dfg['Uitrusting voor activiteit'] = dfg['Uitrusting voor activiteit'].fillna('').astype(str)
+    dfg = dfg[dfg['Uitrusting voor activiteit'].str.strip() != '']
+    dfg = dfg[dfg['Uitrusting voor activiteit'].str.lower() != 'nan']
+    if dfg.empty: return "<p style='color:#999;text-align:center'>Geen uitrusting</p>"
+    
+    stats = dfg.groupby('Uitrusting voor activiteit').agg(Count=('Categorie','count'), Km=('Afstand_km','sum'), Type=('Categorie', lambda x: x.mode()[0] if not x.mode().empty else 'Onbekend')).reset_index().sort_values('Km', ascending=False)
+    html = '<div class="kpi-grid">'
+    for _, r in stats.iterrows():
+        icon = '🚲' if 'Fiets' in str(r['Type']) else '👟'
+        max_k = 10000 if icon == '🚲' else 1000
+        pct = min(100, (r['Km']/max_k)*100)
+        col = '#10b981' if pct < 50 else ('#d4af37' if pct < 80 else '#ef4444')
+        fun_txt = "🔥 Going strong"
+        if icon == '👟':
+            if r['Km'] > 800: fun_txt = "💀 Tijd voor nieuwe?"
+            elif r['Km'] < 100: fun_txt = "✨ Inlopen"
+        else:
+            if r['Km'] > 15000: fun_txt = "🔧 Check ketting"
+            else: fun_txt = "🚴"
+        html += f"""<div class="kpi-card" style="display:block; padding:24px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px"><div style="font-size:32px;background:#f1f5f9;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border-radius:16px">{icon}</div><div><div style="font-weight:700;font-size:16px;color:{COLORS['text']};margin-bottom:4px;line-height:1.2">{r['Uitrusting voor activiteit']}</div><div style="font-size:13px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:12px"><div style="font-size:24px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']};font-weight:500">km</span></div><div style="font-size:12px;font-weight:600;color:{col}">{fun_txt}</div></div>
+        <div style="background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden"><div style="width:{pct}%;background:{col};height:100%"></div></div></div>"""
     return html + '</div>'
 
 def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
@@ -492,7 +522,7 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V31.2 (Correct Renaming Order)...")
+    print("🚀 Start V31.3 (Restored Garage Function)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -622,7 +652,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V31.2) gegenereerd: Fixed Rename Order.")
+    print("✅ Dashboard (V31.3) gegenereerd: Restored Garage Function.")
 
 if __name__ == "__main__":
     genereer_dashboard()
