@@ -84,16 +84,13 @@ def robust_date_parser(date_series):
 def determine_category(row):
     """Bepaalt de hoofdcategorie op basis van Activiteitstype en Naam"""
     atype = str(row['Activiteitstype']).lower()
-    # FIX: We gebruiken hier 'Naam' omdat de kolom al hernoemd is voor deze functie wordt aangeroepen
     anaam = str(row['Naam']).lower() 
     
     # 1. ZWIFT / VIRTUEEL (Heeft voorrang)
-    # Als 'virtu' in type staat OF 'zwift' in de naam -> Virtueel
     if 'virtu' in atype or 'zwift' in anaam:
         return 'Virtueel'
     
     # 2. FIETSEN (Buiten)
-    # Zoek naar typische fietswoorden
     if any(x in atype for x in ['fiets', 'ride', 'gravel', 'mtb', 'mountainbike', 'cycle', 'e-bike']):
         return 'Fiets'
         
@@ -101,7 +98,7 @@ def determine_category(row):
     if any(x in atype for x in ['hardloop', 'run', 'jog']):
         return 'Hardlopen'
         
-    # 4. PADEL / TRAINING (Zoals gevraagd: training = padel)
+    # 4. PADEL / TRAINING
     if any(x in atype for x in ['training', 'workout', 'fitness', 'kracht', 'padel', 'tennis']):
         return 'Padel'
         
@@ -122,10 +119,6 @@ def apply_data_logic(df):
     df['Categorie'] = df.apply(determine_category, axis=1)
     
     # Eenheden correcties
-    # Zwemmen is vaak in meters, Strava export is meestal km of meters afh van settings. 
-    # We nemen aan dat input 'Afstand' in km is, behalve als het heel groot is? 
-    # Nee, user zei eerder "delen door 1000 voor zwemmen".
-    # We passen dit toe op de rows die 'Zwemmen' zijn geworden.
     df.loc[df['Categorie'] == 'Zwemmen', 'Afstand_km'] /= 1000
     
     # Proracer fix (Oude fietsritten)
@@ -150,7 +143,6 @@ def apply_data_logic(df):
         df['Gemiddelde_Snelheid_km_u'] = df['Calc_Speed']
     else:
         df['Gemiddelde_Snelheid_km_u'] = df['Gemiddelde_Snelheid_km_u'].fillna(df['Calc_Speed'])
-        # Vul nullen ook in
         df.loc[df['Gemiddelde_Snelheid_km_u'] == 0, 'Gemiddelde_Snelheid_km_u'] = df.loc[df['Gemiddelde_Snelheid_km_u'] == 0, 'Calc_Speed']
 
     return df
@@ -190,14 +182,7 @@ def calculate_streaks(df):
     if temp > max_day: max_day = temp; max_end = dates[-1]
     max_start = max_end - timedelta(days=max_day-1)
     
-    # Wekelijks (ISO Weken)
-    # We groeperen op jaar-week. 
-    valid['ISO_Week'] = valid['Datum'].dt.isocalendar().year * 100 + valid['Datum'].dt.isocalendar().week
-    weeks = sorted(valid['ISO_Week'].unique())
-    
-    cur_week = 0; max_week = 0
-    
-    # Herkans met datum-based week logic
+    # Wekelijks (Datum-based)
     valid['WeekStart'] = valid['Datum'].dt.to_period('W').dt.start_time
     wk_dates = sorted(valid['WeekStart'].unique())
     
@@ -253,7 +238,6 @@ def generate_gold_banner():
 def generate_stats_box(df, current_year):
     df_cur = df[df['Jaar'] == current_year]
     
-    # Gebruik nu de 'Categorie' kolom voor de tellers
     bike_out_km = df_cur[df_cur['Categorie'] == 'Fiets']['Afstand_km'].sum()
     zwift_km = df_cur[df_cur['Categorie'] == 'Virtueel']['Afstand_km'].sum()
     run_km = df_cur[df_cur['Categorie'] == 'Hardlopen']['Afstand_km'].sum()
@@ -311,9 +295,8 @@ def generate_stats_box(df, current_year):
 
 def generate_sport_cards(df_cur, df_prev):
     html = '<div class="sport-grid">'
-    # We itereren nu over de nieuwe Categorie kolom
     for cat in sorted(df_cur['Categorie'].unique()):
-        if cat == 'Overig': continue # Sla overig even over voor netheid, of voeg toe indien gewenst
+        if cat == 'Overig': continue 
         
         dfs = df_cur[df_cur['Categorie'] == cat]
         dfp = pd.DataFrame()
@@ -355,7 +338,6 @@ def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
 
 def generate_hall_of_fame(df):
     html = '<div class="hof-grid">'
-    # Gebruik Categorie
     cats = ['Fiets', 'Virtueel', 'Hardlopen']
     for cat in cats:
         df_s = df[(df['Categorie'] == cat) & (df['Afstand_km'] > 1.0)].copy()
@@ -383,7 +365,6 @@ def generate_hall_of_fame(df):
 
 def generate_detail_table(df, uid):
     if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten gevonden.</p>"
-    # Filter dropdown op Categorie
     opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Categorie'].unique())])
     rows = ""
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
@@ -394,7 +375,6 @@ def generate_detail_table(df, uid):
     return f"""<div class="detail-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px"><h3 style="margin:0;font-size:16px;">Logboek</h3><select id="sf-{uid}" onchange="filterTable('{uid}')" style="padding:5px;border-radius:6px;border:1px solid #ddd"><option value="ALL">Alles</option>{opts}</select></div><div style="overflow-x:auto"><table id="dt-{uid}"><thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead><tbody>{rows}</tbody></table></div></div>"""
 
 def create_cycling_chart(df_yr, df_prev, year):
-    # Gebruik Categorie ipv regex in chart
     df_yr = df_yr.sort_values('DagVanJaar'); df_prev = df_prev.sort_values('DagVanJaar')
     
     df_zwift = df_yr[df_yr['Categorie'] == 'Virtueel'].copy()
@@ -451,7 +431,6 @@ def create_monthly_split(df, year):
     df_cur['Maand'] = df_cur['Datum'].dt.month; df_prev['Maand'] = df_prev['Datum'].dt.month
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     
-    # 1. FIETS (Inclusief Virtual)
     cur_bike = df_cur[df_cur['Categorie'].isin(['Fiets', 'Virtueel'])]
     prev_bike = df_prev[df_prev['Categorie'].isin(['Fiets', 'Virtueel'])]
     
@@ -463,7 +442,6 @@ def create_monthly_split(df, year):
     fig_bike.add_trace(go.Bar(x=months, y=bike_m_cur, name=str(year), marker_color=COLORS['bike_out']))
     fig_bike.update_layout(title="🚴 Afstand Fietsen (Totaal)", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     
-    # 2. LOOP
     cur_run = df_cur[df_cur['Categorie'] == 'Hardlopen']
     prev_run = df_prev[df_prev['Categorie'] == 'Hardlopen']
     
@@ -483,7 +461,6 @@ def create_yearly_evolution(df):
     years = stats.index
     fig = go.Figure()
     
-    # Fiets Totaal (Buiten + Virtueel)
     bike_tot = stats.get('Fiets', 0) + stats.get('Virtueel', 0)
     run_tot = stats.get('Hardlopen', 0)
     
@@ -509,9 +486,13 @@ def create_heatmap(df, year):
     fig.update_layout(title=f"Consistentie {year}", height=200, margin=dict(t=30,b=20,l=30,r=20), xaxis=dict(showgrid=False, zeroline=False, tickmode='array', tickvals=[1,10,20,30,40,50], ticktext=['Jan','Mrt','Mei','Jul','Sep','Nov']), yaxis=dict(showgrid=False, zeroline=False, autorange='reversed'), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
+def genereer_manifest():
+    m = {"name":"Sport Jorden","short_name":"Sport","start_url":"./dashboard.html","display":"standalone","background_color":"#f8fafc","theme_color":"#0f172a","icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]}
+    with open('manifest.json', 'w') as f: json.dump(m, f)
+
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V31.1 (Fixed Key Error in Logic)...")
+    print("🚀 Start V31.2 (Correct Renaming Order)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -528,6 +509,7 @@ def genereer_dashboard():
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
     
+    # HIER IS HET BELANGRIJKSTE: apply_data_logic wordt aangeroepen NADAT de kolommen zijn hernoemd naar 'Naam'
     df = apply_data_logic(df)
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -640,7 +622,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V31.1) gegenereerd: Fixed Key Error.")
+    print("✅ Dashboard (V31.2) gegenereerd: Fixed Rename Order.")
 
 if __name__ == "__main__":
     genereer_dashboard()
