@@ -8,7 +8,7 @@ import json
 import os
 import warnings
 
-# Onderdruk specifieke warnings voor schonere logs
+# Onderdruk specifieke warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- CONFIGURATIE ---
@@ -58,17 +58,13 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def robust_date_parser(date_series):
-    # Stap 1: Probeer te parsen met dag eerst (Europees formaat)
     dates = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
-    
-    # Stap 2: Fallback voor Nederlandse maandnamen
     if dates.isna().sum() > len(dates) * 0.5:
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
         for nl, en in dutch.items(): 
             ds = ds.str.replace(nl, en, regex=False)
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
-    
     return dates
 
 # --- HTML GENERATOREN ---
@@ -266,6 +262,7 @@ def generate_detail_table(df, uid):
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
         st = get_sport_style(r['Activiteitstype'])
         hr = f"{r['Gemiddelde_Hartslag']:.0f}" if pd.notna(r['Gemiddelde_Hartslag']) else "-"
+        # HIER ZAT DE FOUT: Naam toegevoegd aan dataframe rename, dus nu bestaat 'Naam'
         rows += f'<tr data-sport="{r["Activiteitstype"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{r["Datum"].strftime("%d-%m-%y")}</td><td>{r["Activiteitstype"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
 
     return f"""
@@ -299,16 +296,17 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V14.2 (Missing Column Fix)...")
+    print("🚀 Start V14.3 (Naam Kolom Fix)...")
     try: 
         df = pd.read_csv('activities.csv')
     except: 
         print("❌ Geen activities.csv gevonden!")
         return
 
-    # HIER ZAT HET PROBLEEM: Snelheid en Max Snelheid toegevoegd
+    # HIER IS DE FIX: 'Naam activiteit': 'Naam' toegevoegd
     nm = {
         'Datum van activiteit':'Datum',
+        'Naam activiteit': 'Naam',
         'Activiteitstype':'Activiteitstype',
         'Beweegtijd':'Beweegtijd_sec',
         'Afstand':'Afstand_km',
@@ -320,7 +318,6 @@ def genereer_dashboard():
     }
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
     
-    # Zorg dat snelheid ook echt getallen zijn
     for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u']:
         if c in df.columns: 
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',','.'), errors='coerce')
@@ -328,7 +325,6 @@ def genereer_dashboard():
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
 
-    # Datums parse
     df['Datum'] = robust_date_parser(df['Datum'])
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -444,7 +440,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V14.2) gegenereerd: Missing Column Fix.")
+    print("✅ Dashboard (V14.3) gegenereerd: Naam Kolom Fix.")
 
 if __name__ == "__main__":
     genereer_dashboard()
