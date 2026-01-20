@@ -29,6 +29,9 @@ COLORS = {
     'zwift': '#ff6600',    # Fel Oranje
     'bike_out': '#0099ff', # Fel Blauw
     'run': '#fbbf24',      # Goud
+    'swim': '#3b82f6',     # Blauw (Zwemmen) - HIER ZAT DE FOUT
+    'padel': '#84cc16',    # Groen (Padel)
+    'walk': '#10b981',     # Emerald (Wandelen)
     
     # 2025 (LICHT/PASTEL)
     'zwift_prev': '#fdba74', # Zacht Oranje
@@ -40,8 +43,8 @@ SPORT_CONFIG = {
     'Fiets': {'icon': '🚴', 'color': COLORS['bike_out']},
     'Virtuele fietsrit': {'icon': '👾', 'color': COLORS['zwift']},
     'Hardloop': {'icon': '🏃', 'color': COLORS['run']},
-    'Wandel': {'icon': '🚶', 'color': '#10b981'},
-    'Padel': {'icon': '🎾', 'color': '#84cc16'},
+    'Wandel': {'icon': '🚶', 'color': COLORS['walk']},
+    'Padel': {'icon': '🎾', 'color': COLORS['padel']},
     'Zwemmen': {'icon': '🏊', 'color': COLORS['swim']},
     'Default': {'icon': '🏅', 'color': '#64748b'}
 }
@@ -391,12 +394,8 @@ def create_cycling_chart(df_yr, df_prev, year):
     if df_zwift.empty and df_out.empty and df_out_prev.empty and df_zwift_prev.empty: return ""
 
     fig = px.line(title=f"🚴 Wieler-Koers {year}")
-    
-    # 2025 (Ref)
     if not df_out_prev.empty: fig.add_scatter(x=df_out_prev['DagVanJaar'], y=df_out_prev['C'], name=f"🚴 Buiten {int(year)-1}", line_color=COLORS['bike_out_prev'], line_dash='dot')
     if not df_zwift_prev.empty: fig.add_scatter(x=df_zwift_prev['DagVanJaar'], y=df_zwift_prev['C'], name=f"👾 Zwift {int(year)-1}", line_color=COLORS['zwift_prev'], line_dash='dot')
-    
-    # 2026 (Active)
     if not df_out.empty: fig.add_scatter(x=df_out['DagVanJaar'], y=df_out['C'], name=f"🚴 Buiten {int(year)}", line_color=COLORS['bike_out'], line_width=3)
     if not df_zwift.empty: fig.add_scatter(x=df_zwift['DagVanJaar'], y=df_zwift['C'], name=f"👾 Zwift {int(year)}", line_color=COLORS['zwift'], line_width=3)
 
@@ -461,7 +460,7 @@ def create_heatmap(df, year):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V28.0 (Crash Fix & 2025/2026 Split)...")
+    print("🚀 Start V28.1 (Fixed Key Error)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -610,7 +609,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V28.0) gegenereerd: Fixed Crash & Full Splits.")
+    print("✅ Dashboard (V28.1) gegenereerd: Fixed Key Error.")
 
 if __name__ == "__main__":
     genereer_dashboard()
