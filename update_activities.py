@@ -38,7 +38,7 @@ def get_access_token():
         sys.exit(1)
 
 def get_gear_map(token):
-    """Haalt je profiel op om Gear ID's (b1234) om te zetten naar Namen (Canyon)"""
+    """Haalt namen van fietsen en schoenen op."""
     url = "https://www.strava.com/api/v3/athlete"
     headers = {'Authorization': f"Bearer {token}"}
     gear_map = {}
@@ -47,16 +47,9 @@ def get_gear_map(token):
         r = requests.get(url, headers=headers)
         r.raise_for_status()
         data = r.json()
-        
-        # Fietsen mappen
-        for bike in data.get('bikes', []):
-            gear_map[bike['id']] = bike['name']
-        
-        # Schoenen mappen
-        for shoe in data.get('shoes', []):
-            gear_map[shoe['id']] = shoe['name']
-            
-        print(f"✅ Materiaal opgehaald: {len(gear_map)} items gevonden.")
+        for bike in data.get('bikes', []): gear_map[bike['id']] = bike['name']
+        for shoe in data.get('shoes', []): gear_map[shoe['id']] = shoe['name']
+        print(f"✅ Materiaal lijst opgehaald ({len(gear_map)} items).")
     except Exception as e:
         print(f"⚠️ Kon materiaal niet ophalen: {e}")
     
@@ -69,87 +62,69 @@ def format_date(date_str):
     return f"{dt.day} {maanden[dt.month]} {dt.year}, {dt.strftime('%H:%M:%S')}"
 
 def update_csv():
-    print("🔄 Start Strava Update (Met Materiaal)...")
+    print("🔄 Start Volledige Strava Sync...")
     token = get_access_token()
-    
-    # 1. Haal vertaallijst voor materiaal op
     gear_map = get_gear_map(token)
     
-    # 2. Huidige CSV inlezen
-    existing_ids = set()
-    df_existing = pd.DataFrame()
-    
-    if os.path.exists(CSV_FILE):
-        try:
-            df_existing = pd.read_csv(CSV_FILE)
-            if 'Activiteits-ID' in df_existing.columns:
-                existing_ids = set(df_existing['Activiteits-ID'].astype(str))
-        except:
-            print("⚠️ Kon CSV niet lezen, start nieuw.")
-
-    # 3. Data ophalen (200 items om zeker te zijn dat we materiaal vullen)
+    # We bouwen de lijst helemaal opnieuw op (veiligste voor gear update)
+    all_activities = []
+    page = 1
     headers = {'Authorization': f"Bearer {token}"}
-    url = "https://www.strava.com/api/v3/athlete/activities?per_page=200"
     
-    try:
-        r = requests.get(url, headers=headers)
-        r.raise_for_status()
-        activities = r.json()
-    except Exception as e:
-        print(f"❌ Fout bij activities: {e}")
-        sys.exit(1)
+    while True:
+        print(f"   📄 Ophalen pagina {page}...")
+        url = f"https://www.strava.com/api/v3/athlete/activities?per_page=200&page={page}"
+        
+        try:
+            r = requests.get(url, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+            
+            if not data: # Geen activiteiten meer op deze pagina
+                break
+                
+            all_activities.extend(data)
+            page += 1
+            
+        except Exception as e:
+            print(f"❌ Fout bij pagina {page}: {e}")
+            break
+
+    print(f"✅ Totaal {len(all_activities)} activiteiten gevonden.")
 
     new_rows = []
-    
-    for act in activities:
+    for act in all_activities:
         act_id = str(act['id'])
+        gear_id = act.get('gear_id')
+        gear_name = gear_map.get(gear_id, "")
         
-        # Check of we deze moeten updaten
-        # TIP: Als je oude ritten ook materiaal wilt geven, moet je de CSV verwijderen
-        if act_id not in existing_ids:
-            # Materiaal naam opzoeken
-            gear_id = act.get('gear_id')
-            gear_name = gear_map.get(gear_id, "")
-            
-            # Snelheid conversie (m/s -> km/u)
-            avg_speed = act['average_speed'] * 3.6
-            max_speed = act['max_speed'] * 3.6
-            
-            row = {
-                'Activiteits-ID': act_id,
-                'Datum van activiteit': format_date(act['start_date_local']),
-                'Naam activiteit': act['name'],
-                'Activiteitstype': TYPE_MAPPING.get(act['type'], act['type']),
-                'Beweegtijd': act['moving_time'],
-                'Afstand': f"{(act['distance']/1000):.2f}".replace('.', ','),
-                'Max. hartslag': act.get('max_heartrate', ''),
-                'Gemiddelde snelheid': f"{avg_speed:.1f}".replace('.', ','),
-                'Max. snelheid': f"{max_speed:.1f}".replace('.', ','),
-                'Totale stijging': act['total_elevation_gain'],
-                'Gemiddelde hartslag': act.get('average_heartrate', ''),
-                'Calorieën': act.get('kilojoules', 0),
-                'Uitrusting voor activiteit': gear_name  # <--- HIER ZIT DE UPDATE
-            }
-            new_rows.append(row)
+        avg_speed = act['average_speed'] * 3.6
+        max_speed = act['max_speed'] * 3.6
+        
+        row = {
+            'Activiteits-ID': act_id,
+            'Datum van activiteit': format_date(act['start_date_local']),
+            'Naam activiteit': act['name'],
+            'Activiteitstype': TYPE_MAPPING.get(act['type'], act['type']),
+            'Beweegtijd': act['moving_time'],
+            'Afstand': f"{(act['distance']/1000):.2f}".replace('.', ','),
+            'Max. hartslag': act.get('max_heartrate', ''),
+            'Gemiddelde snelheid': f"{avg_speed:.1f}".replace('.', ','),
+            'Max. snelheid': f"{max_speed:.1f}".replace('.', ','),
+            'Totale stijging': act['total_elevation_gain'],
+            'Gemiddelde hartslag': act.get('average_heartrate', ''),
+            'Calorieën': act.get('kilojoules', 0),
+            'Uitrusting voor activiteit': gear_name
+        }
+        new_rows.append(row)
 
-    # 4. Opslaan
+    # Opslaan (Overschrijft alles, zodat alles fris is met materiaal)
     if new_rows:
         df_new = pd.DataFrame(new_rows)
-        # Zorg dat de kolommen matchen
-        if not df_existing.empty:
-            # Als de oude CSV de kolom 'Uitrusting...' nog niet had, voeg die toe
-            if 'Uitrusting voor activiteit' not in df_existing.columns:
-                df_existing['Uitrusting voor activiteit'] = ""
-            
-            # Voeg samen
-            df_final = pd.concat([df_existing, df_new], ignore_index=True)
-        else:
-            df_final = df_new
-            
-        df_final.to_csv(CSV_FILE, index=False)
-        print(f"✅ {len(new_rows)} activiteiten toegevoegd (met materiaal!)")
+        df_new.to_csv(CSV_FILE, index=False)
+        print("✅ CSV succesvol herbouwd met alle historie!")
     else:
-        print("✅ Geen nieuwe activiteiten.")
+        print("⚠️ Geen data om op te slaan.")
 
 if __name__ == "__main__":
     update_csv()
