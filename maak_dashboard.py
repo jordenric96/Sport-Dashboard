@@ -35,6 +35,7 @@ SPORT_CONFIG = {
 # --- HULPFUNCTIES ---
 
 def format_time(seconds):
+    """Zet seconden om naar 12u 30m formaat"""
     if pd.isna(seconds) or seconds <= 0: return '-'
     seconds = int(seconds)
     hours, remainder = divmod(seconds, 3600)
@@ -42,7 +43,7 @@ def format_time(seconds):
     return f'{hours}u {minutes:02d}m'
 
 def format_diff_html(current, previous, unit="", inverse=False):
-    # AANGEPAST: Ook bij 0 vorige activiteiten gewoon het verschil tonen (bv +1)
+    """Maakt het groene/rode verschil label"""
     if pd.isna(previous): previous = 0
     
     diff = current - previous
@@ -51,7 +52,12 @@ def format_diff_html(current, previous, unit="", inverse=False):
     is_good = (diff > 0) if not inverse else (diff < 0)
     color = COLORS['success'] if is_good else COLORS['danger']
     arrow = "▲" if diff > 0 else "▼"
-    val_str = f"{abs(diff):.1f}" if isinstance(diff, float) else f"{abs(int(diff))}"
+    
+    # Als de unit 'u' (uren) is, toon 1 decimaal, anders 0 of 1 afhankelijk van grootte
+    if unit == 'u':
+        val_str = f"{abs(diff):.1f}"
+    else:
+        val_str = f"{abs(diff):.1f}" if isinstance(diff, float) else f"{abs(int(diff))}"
     
     bg = f"{color}15" # Transparante achtergrond
     return f'<span style="color:{color}; background:{bg}; padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.85em;">{arrow} {val_str} {unit}</span>'
@@ -81,7 +87,6 @@ def robust_date_parser(date_series):
 # --- HTML GENERATOREN ---
 
 def generate_kpi(title, value, icon="", diff=""):
-    # Subtext (vs YTD) is verwijderd, alleen de diff wordt getoond
     return f"""
     <div class="kpi-card">
         <div class="kpi-icon-box">{icon}</div>
@@ -118,10 +123,9 @@ def generate_sport_cards(df_cur, df_prev):
         diff_count = format_diff_html(count, prev_count)
         diff_dist = format_diff_html(dist, prev_dist, "km")
         
-        # AANGEPAST: Voor Padel verbergen we het Afstand blokje
+        # Padel logic: verberg afstand
         is_padel = (sport == 'Padel')
         
-        # Afstand blok HTML (leeg als Padel)
         if is_padel:
             dist_html = f"""
             <div class="stat-col" style="opacity:0.3;">
@@ -138,13 +142,13 @@ def generate_sport_cards(df_cur, df_prev):
             </div>
             """
 
-        # Extra stat
+        # Extra stat (Snelste/Langste)
         extra_stat = ""
         if 'Fiets' in sport:
             real_rides = df_s_cur[df_s_cur['Afstand_km'] > 5]
             max_spd = real_rides['Gemiddelde_Snelheid_km_u'].max() if not real_rides.empty else 0
             if max_spd > 0: extra_stat = f'<div class="stat-row"><span>Snelste rit (gem)</span> <strong>{max_spd:.1f} km/u</strong></div>'
-        elif not is_padel: # Geen langste afstand voor Padel
+        elif not is_padel:
             max_dst = df_s_cur['Afstand_km'].max()
             if max_dst > 0: extra_stat = f'<div class="stat-row"><span>Langste</span> <strong>{max_dst:.1f} km</strong></div>'
         
@@ -178,7 +182,6 @@ def generate_hall_of_fame(df):
     sports = sorted(df['Activiteitstype'].unique())
     
     for sport in sports:
-        # Padel hoeft niet in Hall of Fame voor afstand/snelheid
         if sport == 'Padel': continue
 
         # Filter: alleen serieuze activiteiten (bv > 1km)
@@ -194,7 +197,7 @@ def generate_hall_of_fame(df):
             row = df_s.loc[idx_dist]
             records.append({'label': 'Langste Afstand', 'val': f"{row['Afstand_km']:.1f} km", 'date': row['Datum'], 'icon': '📏'})
         
-        # 2. Snelste (FILTER LOGICA)
+        # 2. Snelste
         if 'Fiets' in sport:
             df_speed = df_s[df_s['Gemiddelde_Snelheid_km_u'] > 10]
             if not df_speed.empty:
@@ -237,18 +240,15 @@ def generate_hall_of_fame(df):
     return html
 
 def generate_gear_section(df):
-    """Genereert de Garage view op basis van 'Uitrusting voor activiteit' kolom."""
     if 'Uitrusting voor activiteit' not in df.columns:
-        return "<p style='text-align:center; color:#999'>Geen uitrusting data gevonden in CSV.</p>"
+        return "<p style='text-align:center; color:#999'>Geen uitrusting data gevonden.</p>"
     
-    # Filter lege waarden eruit, maar wees tolerant
     df_gear = df.dropna(subset=['Uitrusting voor activiteit'])
     df_gear = df_gear[df_gear['Uitrusting voor activiteit'].str.strip() != '']
 
     if df_gear.empty:
-         return "<p style='text-align:center; color:#999'>Nog geen uitrusting gebruikt of geregistreerd.</p>"
+         return "<p style='text-align:center; color:#999'>Nog geen uitrusting gebruikt.</p>"
 
-    # Groepeer op materiaal
     gear_stats = df_gear.groupby('Uitrusting voor activiteit').agg(
         Aantal=('Activiteitstype', 'count'),
         Afstand=('Afstand_km', 'sum'),
@@ -261,11 +261,8 @@ def generate_gear_section(df):
     html = '<div class="kpi-grid">'
     for _, row in gear_stats.iterrows():
         gear_name = row['Uitrusting voor activiteit']
-        
-        # Icon bepalen
         icon = '🚲' if 'Ride' in str(row['Type']) or 'Fiets' in str(row['Type']) else '👟'
         
-        # Levensduur bar
         max_dist = 10000 if icon == '🚲' else 1000
         pct = min(100, (row['Afstand'] / max_dist) * 100)
         color = COLORS['success'] if pct < 50 else (COLORS['gold'] if pct < 80 else COLORS['danger'])
@@ -302,14 +299,14 @@ def genereer_manifest():
     with open('manifest.json', 'w') as f: json.dump(manifest, f)
 
 def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html'):
-    print("🚀 Start Generatie V7 (Clean Design)...")
+    print("🚀 Start Generatie V8 (Met Totale Tijd)...")
     try:
         df = pd.read_csv(csv_input)
     except:
         print("❌ CSV niet gevonden.")
         return
 
-    # 1. CLEANING
+    # CLEANING
     df = df.rename(columns={
         'Datum van activiteit': 'Datum', 'Naam activiteit': 'Naam', 
         'Activiteitstype': 'Activiteitstype', 'Beweegtijd': 'Beweegtijd_sec',
@@ -325,12 +322,10 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         if c in df.columns and df[c].dtype == object:
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
             
-    # Snelheid check
     if df['Gemiddelde_Snelheid_km_u'].mean() < 8: 
         df['Gemiddelde_Snelheid_km_u'] *= 3.6
         if 'Max_Snelheid_km_u' in df.columns: df['Max_Snelheid_km_u'] *= 3.6
 
-    # Padel Logic
     padel_types = ['Training', 'Workout', 'WeightTraining', 'Krachttraining', 'Fitness']
     mask_padel = df['Activiteitstype'].isin(padel_types) | df['Activiteitstype'].str.contains('Training', case=False)
     df.loc[mask_padel, 'Activiteitstype'] = 'Padel'
@@ -347,7 +342,7 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
     max_datum = df['Datum'].max()
     ytd_day = max_datum.dayofyear if max_datum.year == huidig_jaar else 366
 
-    # --- GENERATIE ---
+    # GENERATIE
     genereer_manifest()
 
     nav_html = ""
@@ -362,13 +357,28 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         df_prev_all = df[df['Jaar'] == prev]
         df_prev_ytd = df_prev_all[df_prev_all['DagVanJaar'] <= ytd_day] if is_cur else df_prev_all
         
-        sc = {'n': len(df_j), 'km': df_j['Afstand_km'].sum(), 'h': df_j['Hoogte_m'].sum()}
-        sp = {'n': len(df_prev_ytd), 'km': df_prev_ytd['Afstand_km'].sum(), 'h': df_prev_ytd['Hoogte_m'].sum()}
+        # Calculate stats
+        sc = {
+            'n': len(df_j), 
+            'km': df_j['Afstand_km'].sum(), 
+            'h': df_j['Hoogte_m'].sum(),
+            't': df_j['Beweegtijd_sec'].sum() # Totale Tijd (sec)
+        }
+        sp = {
+            'n': len(df_prev_ytd), 
+            'km': df_prev_ytd['Afstand_km'].sum(), 
+            'h': df_prev_ytd['Hoogte_m'].sum(),
+            't': df_prev_ytd['Beweegtijd_sec'].sum()
+        }
+        
+        # Format Time Diff (in Uren)
+        time_diff_hours = (sc['t'] - sp['t']) / 3600
         
         kpis = f"""<div class="kpi-grid">
             {generate_kpi("Sessies", sc['n'], "🔥", format_diff_html(sc['n'], sp['n']))}
             {generate_kpi("Afstand", f"{sc['km']:,.0f} km", "📏", format_diff_html(sc['km'], sp['km'], "km"))}
             {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
+            {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html(time_diff_hours, 0, "u"))}
         </div>"""
         
         # Grafiek
@@ -398,10 +408,14 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
 
     # TOTAAL
     nav_html += '<button class="nav-btn" onclick="openTab(event, \'view-Total\')">Totaal</button>'
-    tk_n = len(df); tk_km = df['Afstand_km'].sum()
+    tk_n = len(df); tk_km = df['Afstand_km'].sum(); tk_time = df['Beweegtijd_sec'].sum()
     sections_html += f"""<div id="view-Total" class="tab-content" style="display:none;">
         <h2 class="section-title">Carrière</h2>
-        <div class="kpi-grid">{generate_kpi("Totaal Sessies", tk_n)}{generate_kpi("Totaal Km", f"{tk_km:,.0f} km")}</div>
+        <div class="kpi-grid">
+            {generate_kpi("Totaal Sessies", tk_n, "🏆")}
+            {generate_kpi("Totaal Km", f"{tk_km:,.0f} km", "🌍")}
+            {generate_kpi("Totaal Tijd", format_time(tk_time), "⏱️")}
+        </div>
         {generate_sport_cards(df, None)}
     </div>"""
 
