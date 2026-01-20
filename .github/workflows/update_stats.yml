@@ -1,0 +1,45 @@
+name: Update Strava Data
+
+on:
+  schedule:
+    # Draai elke dag om 06:00 en 18:00
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: # Zorgt voor een knop om handmatig te testen
+
+permissions:
+  contents: write
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install pandas requests plotly
+
+    - name: Run Strava Update Script
+      env:
+        STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+        STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+        STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+      run: python update_activities.py
+
+    - name: Run Dashboard Generator
+      run: python maak_dashboard.py
+
+    - name: Commit and Push changes
+      run: |
+        git config --global user.name "GitHub Action Bot"
+        git config --global user.email "actions@github.com"
+        git add activities.csv dashboard.html
+        # Alleen committen als er daadwerkelijk nieuwe data is
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update: nieuwe activiteiten" && git push)
