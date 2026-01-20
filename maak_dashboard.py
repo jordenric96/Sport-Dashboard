@@ -222,11 +222,10 @@ def generate_gear_section(df):
     if 'Uitrusting voor activiteit' not in df.columns:
         return "<p style='text-align:center; color:#999'>Geen uitrusting data gevonden.</p>"
     
-    # --- DE FIX: FORCEER NAAR STRING ---
+    # VEILIGE STRING CONVERSIE
     df_gear = df.copy()
     df_gear['Uitrusting voor activiteit'] = df_gear['Uitrusting voor activiteit'].fillna('').astype(str)
     
-    # Nu filteren we veilig
     df_gear = df_gear[
         (df_gear['Uitrusting voor activiteit'].str.strip() != '') & 
         (df_gear['Uitrusting voor activiteit'].str.lower() != 'nan')
@@ -273,6 +272,7 @@ def generate_gear_section(df):
     return html
 
 def genereer_manifest():
+    # HIER IS JE BESTANDSNAAM AANGEPAST
     manifest = {
         "name": "Sport Jorden",
         "short_name": "Sport",
@@ -280,12 +280,16 @@ def genereer_manifest():
         "display": "standalone",
         "background_color": "#f8fafc",
         "theme_color": "#0f172a",
-        "icons": [{"src": "icon.png", "sizes": "512x512", "type": "image/png"}]
+        "icons": [{
+            "src": "1768922516256~2.jpg", 
+            "sizes": "512x512", 
+            "type": "image/jpeg"
+        }]
     }
     with open('manifest.json', 'w') as f: json.dump(manifest, f)
 
 def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html'):
-    print("🚀 Start Generatie V8.1 (Fix Gear Crash)...")
+    print("🚀 Start Generatie V9 (Icoon Fix)...")
     try:
         df = pd.read_csv(csv_input)
     except:
@@ -424,7 +428,7 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="icon.png">
+        <link rel="apple-touch-icon" href="1768922516256~2.jpg">
         <title>Sportoverzicht Jorden</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
