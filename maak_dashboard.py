@@ -12,47 +12,48 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- CONFIGURATIE ---
 GOALS = {
-    'bike': 3000,
-    'run': 350
+    'bike_out': 3000, # Buiten
+    'zwift': 3000,    # Binnen
+    'run': 350        # Lopen
 }
 
 COLORS = {
     'primary': '#0f172a', 
     'gold': '#d4af37', 
-    'gold_bg': '#f59e0b', # <--- DEZE WAS WEGGEVALLEN, NU TERUG
+    'gold_bg': '#f59e0b',
     'bg': '#f8fafc', 
     'card': '#ffffff', 
     'text': '#1e293b', 
     'text_light': '#64748b',
     
-    # 2026 (FEL)
-    'zwift': '#ff6600',    # Fel Oranje
-    'bike_out': '#0099ff', # Fel Blauw
+    # DISTINCTE KLEUREN
+    'zwift': '#ff6600',    # Oranje
+    'bike_out': '#0099ff', # Blauw
     'run': '#fbbf24',      # Goud
-    'swim': '#3b82f6',     # Blauw
-    'padel': '#84cc16',    # Groen
-    'walk': '#10b981',     # Emerald
+    'swim': '#3b82f6',     
+    'padel': '#84cc16',    
+    'walk': '#10b981',     
+    'default': '#64748b',
     
     # 2025 (LICHT/PASTEL)
     'zwift_prev': '#fdba74', 
     'bike_out_prev': '#93c5fd', 
-    'run_prev': '#cbd5e1'    # Grijs
+    'run_prev': '#cbd5e1'    
 }
 
+# Mapping voor iconen en kleuren
 SPORT_CONFIG = {
     'Fiets': {'icon': '🚴', 'color': COLORS['bike_out']},
-    'Virtuele fietsrit': {'icon': '👾', 'color': COLORS['zwift']},
-    'Hardloop': {'icon': '🏃', 'color': COLORS['run']},
-    'Wandel': {'icon': '🚶', 'color': '#10b981'},
-    'Padel': {'icon': '🎾', 'color': '#84cc16'},
+    'Virtueel': {'icon': '👾', 'color': COLORS['zwift']},
+    'Hardlopen': {'icon': '🏃', 'color': COLORS['run']},
+    'Wandelen': {'icon': '🚶', 'color': COLORS['walk']},
+    'Padel': {'icon': '🎾', 'color': COLORS['padel']},
     'Zwemmen': {'icon': '🏊', 'color': COLORS['swim']},
-    'Default': {'icon': '🏅', 'color': '#64748b'}
+    'Overig': {'icon': '🏅', 'color': COLORS['default']}
 }
 
-def get_sport_style(sport_name):
-    for key, config in SPORT_CONFIG.items():
-        if key.lower() in str(sport_name).lower(): return config
-    return SPORT_CONFIG['Default']
+def get_sport_style(cat):
+    return SPORT_CONFIG.get(cat, SPORT_CONFIG['Overig'])
 
 def format_time(seconds):
     if pd.isna(seconds) or seconds <= 0: return '-'
@@ -70,6 +71,7 @@ def format_diff_html(cur, prev, unit=""):
 
 def robust_date_parser(date_series):
     dates = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
+    # Fallback voor Nederlandse maanden als standaard parse faalt
     if dates.isna().sum() > len(dates) * 0.5:
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
@@ -78,113 +80,168 @@ def robust_date_parser(date_series):
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
     return dates
 
-# --- STREAK & LOGIC ---
-def calculate_streaks(df):
-    if df.empty: return {}
-    valid_date_rows = df.dropna(subset=['Datum'])
-    dates = sorted(valid_date_rows['Datum'].dt.date.unique())
-    if not dates: return {}
+# --- CORE CATEGORIZATION LOGIC ---
+def determine_category(row):
+    """Bepaalt de hoofdcategorie op basis van Activiteitstype en Naam"""
+    atype = str(row['Activiteitstype']).lower()
+    anaam = str(row['Naam activiteit']).lower()
     
-    current_streak = 0
-    max_streak = 0
-    max_streak_end = dates[0]
-    temp_streak = 0
+    # 1. ZWIFT / VIRTUEEL (Heeft voorrang)
+    # Als 'virtu' in type staat OF 'zwift' in de naam -> Virtueel
+    if 'virtu' in atype or 'zwift' in anaam:
+        return 'Virtueel'
     
-    today = datetime.now().date()
-    yesterday = today - timedelta(days=1)
-    date_set = set(dates)
-    
-    if today in date_set:
-        current_streak = 1
-        check_date = yesterday
-        while check_date in date_set:
-            current_streak += 1
-            check_date -= timedelta(days=1)
-    elif yesterday in date_set:
-        current_streak = 1
-        check_date = yesterday - timedelta(days=1)
-        while check_date in date_set:
-            current_streak += 1
-            check_date -= timedelta(days=1)
-            
-    temp_streak = 1
-    for i in range(1, len(dates)):
-        if (dates[i] - dates[i-1]).days == 1:
-            temp_streak += 1
-        else:
-            if temp_streak > max_streak:
-                max_streak = temp_streak
-                max_streak_end = dates[i-1]
-            temp_streak = 1
-    if temp_streak > max_streak:
-        max_streak = temp_streak
-        max_streak_end = dates[-1]
+    # 2. FIETSEN (Buiten)
+    # Zoek naar typische fietswoorden
+    if any(x in atype for x in ['fiets', 'ride', 'gravel', 'mtb', 'mountainbike', 'cycle', 'e-bike']):
+        return 'Fiets'
         
-    max_streak_start = max_streak_end - timedelta(days=max_streak-1)
-
-    df_valid = df.dropna(subset=['Datum']).copy()
-    df_wk = df_valid.set_index('Datum').resample('W').size()
-    df_wk = df_wk[df_wk > 0]
-    
-    if not df_wk.empty:
-        temp_w = 1
-        max_week_streak = 1
-        dates_wk = df_wk.index
-        max_week_end_dt = dates_wk[0]
+    # 3. HARDLOPEN
+    if any(x in atype for x in ['hardloop', 'run', 'jog']):
+        return 'Hardlopen'
         
-        for i in range(1, len(dates_wk)):
-            if (dates_wk[i] - dates_wk[i-1]).days <= 7:
-                temp_w += 1
-            else:
-                if temp_w > max_week_streak:
-                    max_week_streak = temp_w
-                    max_week_end_dt = dates_wk[i-1]
-                temp_w = 1
-        if temp_w > max_week_streak:
-            max_week_streak = temp_w
-            max_week_end_dt = dates_wk[-1]
-            
-        max_week_start_dt = max_week_end_dt - timedelta(weeks=max_week_streak-1)
-    else:
-        max_week_streak = 0
-        max_week_start_dt = datetime.now()
-        max_week_end_dt = datetime.now()
-
-    return {
-        'cur_day': current_streak,
-        'max_day': max_streak,
-        'max_day_range': f"{max_streak_start.strftime('%d %b %y')} - {max_streak_end.strftime('%d %b %y')}",
-        'max_week': max_week_streak,
-        'max_week_range': f"{max_week_start_dt.strftime('%d %b %y')} - {max_week_end_dt.strftime('%d %b %y')}"
-    }
+    # 4. PADEL / TRAINING (Zoals gevraagd: training = padel)
+    if any(x in atype for x in ['training', 'workout', 'fitness', 'kracht', 'padel', 'tennis']):
+        return 'Padel'
+        
+    # 5. ZWEMMEN
+    if 'zwem' in atype:
+        return 'Zwemmen'
+        
+    # 6. WANDELEN
+    if any(x in atype for x in ['wandel', 'hike', 'walk']):
+        return 'Wandelen'
+        
+    return 'Overig'
 
 def apply_data_logic(df):
     df['Datum'] = robust_date_parser(df['Datum'])
     
-    # Proracer fix
+    # CATEGORIE BEPALEN (De "Sorteerhoed")
+    df['Categorie'] = df.apply(determine_category, axis=1)
+    
+    # Eenheden correcties
+    # Zwemmen is vaak in meters, Strava export is meestal km of meters afh van settings. 
+    # We nemen aan dat input 'Afstand' in km is, behalve als het heel groot is? 
+    # Nee, user zei eerder "delen door 1000 voor zwemmen".
+    # We passen dit toe op de rows die 'Zwemmen' zijn geworden.
+    df.loc[df['Categorie'] == 'Zwemmen', 'Afstand_km'] /= 1000
+    
+    # Proracer fix (Oude fietsritten)
     merida_rides = df[df['Uitrusting voor activiteit'].str.contains('Merida', case=False, na=False)]
     if not merida_rides.empty:
         first_merida_date = merida_rides['Datum'].min()
         mask = (
             (df['Datum'] < first_merida_date) & 
-            (df['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False)) &
+            (df['Categorie'] == 'Fiets') &
             (df['Uitrusting voor activiteit'].isna() | (df['Uitrusting voor activiteit'] == '') | (df['Uitrusting voor activiteit'] == 'nan'))
         )
         if mask.sum() > 0: df.loc[mask, 'Uitrusting voor activiteit'] = 'Proracer'
             
-    # Snelheid Fix
+    # Snelheid Fix (m/s -> km/u)
     if 'Gemiddelde_Snelheid_km_u' in df.columns:
         if df['Gemiddelde_Snelheid_km_u'].mean() < 10: df['Gemiddelde_Snelheid_km_u'] *= 3.6
     
+    # Fallback snelheid
     df['Calc_Speed'] = (df['Afstand_km'] / (df['Beweegtijd_sec'] / 3600)).replace([np.inf, -np.inf], 0)
     
     if 'Gemiddelde_Snelheid_km_u' not in df.columns:
         df['Gemiddelde_Snelheid_km_u'] = df['Calc_Speed']
     else:
         df['Gemiddelde_Snelheid_km_u'] = df['Gemiddelde_Snelheid_km_u'].fillna(df['Calc_Speed'])
+        # Vul nullen ook in
         df.loc[df['Gemiddelde_Snelheid_km_u'] == 0, 'Gemiddelde_Snelheid_km_u'] = df.loc[df['Gemiddelde_Snelheid_km_u'] == 0, 'Calc_Speed']
 
     return df
+
+# --- STREAKS ---
+def calculate_streaks(df):
+    if df.empty: return {}
+    valid = df.dropna(subset=['Datum']).sort_values('Datum')
+    if valid.empty: return {}
+    
+    # Dagelijks
+    dates = sorted(valid['Datum'].dt.date.unique())
+    cur_day = 0; max_day = 0
+    
+    # Huidig
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+    date_set = set(dates)
+    
+    if today in date_set:
+        cur_day = 1
+        check = yesterday
+        while check in date_set: cur_day += 1; check -= timedelta(days=1)
+    elif yesterday in date_set:
+        cur_day = 1
+        check = yesterday - timedelta(days=1)
+        while check in date_set: cur_day += 1; check -= timedelta(days=1)
+        
+    # Max
+    temp = 1; max_day = 1
+    max_end = dates[0]
+    for i in range(1, len(dates)):
+        if (dates[i] - dates[i-1]).days == 1: temp += 1
+        else:
+            if temp > max_day: max_day = temp; max_end = dates[i-1]
+            temp = 1
+    if temp > max_day: max_day = temp; max_end = dates[-1]
+    max_start = max_end - timedelta(days=max_day-1)
+    
+    # Wekelijks (ISO Weken)
+    # We groeperen op jaar-week. 
+    valid['ISO_Week'] = valid['Datum'].dt.isocalendar().year * 100 + valid['Datum'].dt.isocalendar().week
+    weeks = sorted(valid['ISO_Week'].unique())
+    
+    cur_week = 0; max_week = 0
+    if len(weeks) > 0:
+        curr_iso = datetime.now().isocalendar().year * 100 + datetime.now().isocalendar().week
+        prev_iso = (datetime.now() - timedelta(weeks=1)).isocalendar().year * 100 + (datetime.now() - timedelta(weeks=1)).isocalendar().week
+        
+        # Check current streak
+        last_w = weeks[-1]
+        # Simpele check: als laatste week == deze week of vorige week
+        # Let op: jaarwissel (202552 -> 202601) is lastig met simpele wiskunde.
+        # We gebruiken datum-diff van de 'WeekStart' logica die we eerder hadden, die was beter.
+        
+    # Herkans met datum-based week logic
+    valid['WeekStart'] = valid['Datum'].dt.to_period('W').dt.start_time
+    wk_dates = sorted(valid['WeekStart'].unique())
+    
+    cur_wk_streak = 0
+    max_wk_streak = 0
+    
+    if len(wk_dates) > 0:
+        last = wk_dates[-1]
+        now_wk = pd.Timestamp.now().to_period('W').start_time
+        
+        if (now_wk - last).days <= 7:
+            cur_wk_streak = 1
+            for i in range(len(wk_dates)-2, -1, -1):
+                if (wk_dates[i+1] - wk_dates[i]).days == 7: cur_wk_streak += 1
+                else: break
+                
+        temp = 1; max_wk_streak = 1
+        max_wk_end = wk_dates[0]
+        for i in range(1, len(wk_dates)):
+            if (wk_dates[i] - wk_dates[i-1]).days == 7: temp += 1
+            else:
+                if temp > max_wk_streak: max_wk_streak = temp; max_wk_end = wk_dates[i-1]
+                temp = 1
+        if temp > max_wk_streak: max_wk_streak = temp; max_wk_end = wk_dates[-1]
+        max_wk_start = max_wk_end - timedelta(weeks=max_wk_streak-1)
+    else:
+        max_wk_start = datetime.now(); max_wk_end = datetime.now()
+
+    return {
+        'cur_day': cur_day,
+        'max_day': max_day,
+        'max_day_range': f"{max_start.strftime('%d %b %y')} - {max_end.strftime('%d %b %y')}",
+        'cur_week': cur_wk_streak,
+        'max_week': max_wk_streak,
+        'max_week_range': f"{max_wk_start.strftime('%d %b %y')} - {max_wk_end.strftime('%d %b %y')}"
+    }
 
 # --- HTML GENERATOREN ---
 def generate_kpi(title, val, icon="", diff=""):
@@ -203,10 +260,14 @@ def generate_gold_banner():
 
 def generate_stats_box(df, current_year):
     df_cur = df[df['Jaar'] == current_year]
-    bike_km = df_cur[df_cur['Activiteitstype'].str.contains('Fiets|Ride|Gravel|Virtual', case=False, na=False)]['Afstand_km'].sum()
-    run_km = df_cur[df_cur['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False)]['Afstand_km'].sum()
     
-    bike_pct = min(100, (bike_km / GOALS['bike']) * 100)
+    # Gebruik nu de 'Categorie' kolom voor de tellers
+    bike_out_km = df_cur[df_cur['Categorie'] == 'Fiets']['Afstand_km'].sum()
+    zwift_km = df_cur[df_cur['Categorie'] == 'Virtueel']['Afstand_km'].sum()
+    run_km = df_cur[df_cur['Categorie'] == 'Hardlopen']['Afstand_km'].sum()
+    
+    bike_pct = min(100, (bike_out_km / GOALS['bike_out']) * 100)
+    zwift_pct = min(100, (zwift_km / GOALS['zwift']) * 100)
     run_pct = min(100, (run_km / GOALS['run']) * 100)
     
     streaks = calculate_streaks(df)
@@ -215,29 +276,42 @@ def generate_stats_box(df, current_year):
     <div class="stats-box-container">
         <div class="goals-section">
             <h3 style="margin:0 0 10px 0; font-size:14px; color:#64748b;">DOELEN {current_year}</h3>
+            
             <div class="goal-item">
                 <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px; font-weight:600;">
-                    <span>🚴 {bike_km:.0f} / {GOALS['bike']} km</span><span>{bike_pct:.1f}%</span>
+                    <span>🚴 Buiten: {bike_out_km:.0f} / {GOALS['bike_out']} km</span><span>{bike_pct:.1f}%</span>
                 </div>
                 <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
                     <div style="width:{bike_pct}%; background:{COLORS['bike_out']}; height:100%;"></div>
                 </div>
             </div>
-            <div class="goal-item" style="margin-top:15px;">
+            
+            <div class="goal-item" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px; font-weight:600;">
-                    <span>🏃 {run_km:.0f} / {GOALS['run']} km</span><span>{run_pct:.1f}%</span>
+                    <span>👾 Zwift: {zwift_km:.0f} / {GOALS['zwift']} km</span><span>{zwift_pct:.1f}%</span>
+                </div>
+                <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
+                    <div style="width:{zwift_pct}%; background:{COLORS['zwift']}; height:100%;"></div>
+                </div>
+            </div>
+            
+            <div class="goal-item" style="margin-top:12px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px; font-weight:600;">
+                    <span>🏃 Lopen: {run_km:.0f} / {GOALS['run']} km</span><span>{run_pct:.1f}%</span>
                 </div>
                 <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
                     <div style="width:{run_pct}%; background:{COLORS['run']}; height:100%;"></div>
                 </div>
             </div>
         </div>
+        
         <div class="streaks-section">
             <h3 style="margin:0 0 10px 0; font-size:14px; color:#64748b;">REEKSEN (STREAKS)</h3>
-            <div class="streak-row"><span class="streak-label">🔥 Huidig:</span><span class="streak-val">{streaks.get('cur_day', 0)} dagen</span></div>
-            <div class="streak-row"><span class="streak-label">📅 Langste Dagelijks:</span><span class="streak-val">{streaks.get('max_day', 0)} dagen</span></div>
+            <div class="streak-row"><span class="streak-label">🔥 Dagelijks:</span><span class="streak-val">{streaks.get('cur_day', 0)} dagen</span></div>
+            <div class="streak-row"><span class="streak-label">📅 Record Dag:</span><span class="streak-val">{streaks.get('max_day', 0)} dagen</span></div>
             <div class="streak-sub">{streaks.get('max_day_range', '-')}</div>
-            <div class="streak-row" style="margin-top:8px;"><span class="streak-label">🗓️ Langste Wekelijks:</span><span class="streak-val">{streaks.get('max_week', 0)} weken</span></div>
+            <div class="streak-row" style="margin-top:8px;"><span class="streak-label">⚡ Wekelijks:</span><span class="streak-val">{streaks.get('cur_week', 0)} weken</span></div>
+            <div class="streak-row"><span class="streak-label">🗓️ Record Week:</span><span class="streak-val">{streaks.get('max_week', 0)} weken</span></div>
             <div class="streak-sub">{streaks.get('max_week_range', '-')}</div>
         </div>
     </div>
@@ -245,50 +319,28 @@ def generate_stats_box(df, current_year):
 
 def generate_sport_cards(df_cur, df_prev):
     html = '<div class="sport-grid">'
-    for sport in sorted(df_cur['Activiteitstype'].unique()):
-        dfs = df_cur[df_cur['Activiteitstype'] == sport]
+    # We itereren nu over de nieuwe Categorie kolom
+    for cat in sorted(df_cur['Categorie'].unique()):
+        if cat == 'Overig': continue # Sla overig even over voor netheid, of voeg toe indien gewenst
+        
+        dfs = df_cur[df_cur['Categorie'] == cat]
         dfp = pd.DataFrame()
         if df_prev is not None and not df_prev.empty:
-            dfp = df_prev[df_prev['Activiteitstype'] == sport]
+            dfp = df_prev[df_prev['Categorie'] == cat]
         
-        st = get_sport_style(sport)
+        st = get_sport_style(cat)
         n = len(dfs); dist = dfs['Afstand_km'].sum(); tm = dfs['Beweegtijd_sec'].sum(); pn = len(dfp)
+        
         dist_html = f'<div class="stat-col"><div class="label">Km</div><div class="val">{dist:,.0f}</div><div class="sub">{format_diff_html(dist, dfp["Afstand_km"].sum() if not dfp.empty else 0, "km")}</div></div>'
-        if sport == 'Padel': dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
+        if cat == 'Padel' or cat == 'Overig': 
+            dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
+        
         hr = dfs['Gemiddelde_Hartslag'].mean()
         hr_html = f'<div class="stat-row"><span>Hartslag</span> <strong class="hr-blur">{hr:.0f}</strong></div>' if pd.notna(hr) else ""
 
-        html += f"""<div class="sport-card"><div class="sport-header"><div class="sport-icon-circle" style="color:{st['color']};background:{st['color']}20">{st['icon']}</div><h3>{sport}</h3></div>
+        html += f"""<div class="sport-card"><div class="sport-header"><div class="sport-icon-circle" style="color:{st['color']};background:{st['color']}20">{st['icon']}</div><h3>{cat}</h3></div>
         <div class="sport-body"><div class="stat-main"><div class="stat-col"><div class="label">Sessies</div><div class="val">{n}</div><div class="sub">{format_diff_html(n, pn)}</div></div><div class="stat-divider"></div>{dist_html}</div>
         <div class="sport-details"><div class="stat-row"><span>Tijd</span> <strong>{format_time(tm)}</strong></div>{hr_html}</div></div></div>"""
-    return html + '</div>'
-
-def generate_gear_section(df):
-    if 'Uitrusting voor activiteit' not in df.columns: return "<p>Geen data</p>"
-    dfg = df.copy()
-    dfg['Uitrusting voor activiteit'] = dfg['Uitrusting voor activiteit'].fillna('').astype(str)
-    dfg = dfg[dfg['Uitrusting voor activiteit'].str.strip() != '']
-    dfg = dfg[dfg['Uitrusting voor activiteit'].str.lower() != 'nan']
-    if dfg.empty: return "<p style='color:#999;text-align:center'>Geen uitrusting</p>"
-    
-    stats = dfg.groupby('Uitrusting voor activiteit').agg(Count=('Activiteitstype','count'), Km=('Afstand_km','sum'), Type=('Activiteitstype', lambda x: x.mode()[0] if not x.mode().empty else 'Onbekend')).reset_index().sort_values('Km', ascending=False)
-    html = '<div class="kpi-grid">'
-    for _, r in stats.iterrows():
-        icon = '🚲' if 'Fiets' in str(r['Type']) else '👟'
-        max_k = 10000 if icon == '🚲' else 1000
-        pct = min(100, (r['Km']/max_k)*100)
-        col = '#10b981' if pct < 50 else ('#d4af37' if pct < 80 else '#ef4444')
-        fun_txt = "🔥 Going strong"
-        if icon == '👟':
-            if r['Km'] > 800: fun_txt = "💀 Tijd voor nieuwe?"
-            elif r['Km'] < 100: fun_txt = "✨ Inlopen"
-        else:
-            if r['Km'] > 15000: fun_txt = "🔧 Check ketting"
-            else: fun_txt = "🚴"
-        html += f"""<div class="kpi-card" style="display:block; padding:24px;">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px"><div style="font-size:32px;background:#f1f5f9;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border-radius:16px">{icon}</div><div><div style="font-weight:700;font-size:16px;color:{COLORS['text']};margin-bottom:4px;line-height:1.2">{r['Uitrusting voor activiteit']}</div><div style="font-size:13px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div></div></div>
-        <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:12px"><div style="font-size:24px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']};font-weight:500">km</span></div><div style="font-size:12px;font-weight:600;color:{col}">{fun_txt}</div></div>
-        <div style="background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden"><div style="width:{pct}%;background:{col};height:100%"></div></div></div>"""
     return html + '</div>'
 
 def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
@@ -311,63 +363,56 @@ def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
 
 def generate_hall_of_fame(df):
     html = '<div class="hof-grid">'
-    sports = sorted(df['Activiteitstype'].unique())
-    for sport in sports:
-        if sport == 'Padel': continue
-        
-        df_s = df[(df['Activiteitstype'] == sport) & (df['Afstand_km'] > 1.0)].copy()
+    # Gebruik Categorie
+    cats = ['Fiets', 'Virtueel', 'Hardlopen']
+    for cat in cats:
+        df_s = df[(df['Categorie'] == cat) & (df['Afstand_km'] > 1.0)].copy()
         if df_s.empty: continue
         
-        style = get_sport_style(sport)
-        
+        style = get_sport_style(cat)
         speed_icon = "⚡"
-        if 'Fiets' in sport: speed_icon = "🚴⚡"
-        if 'Virtueel' in sport or 'Virtual' in sport: speed_icon = "👾⚡"
-        if 'Hardloop' in sport: speed_icon = "🏃⚡"
+        if cat == 'Fiets': speed_icon = "🚴⚡"
+        if cat == 'Virtueel': speed_icon = "👾⚡"
+        if cat == 'Hardlopen': speed_icon = "🏃⚡"
         
         t3_dist = generate_top3_list(df_s, 'Afstand_km', 'km', ascending=False)
         t3_time = generate_top3_list(df_s, 'Beweegtijd_sec', 'u', ascending=False)
         
         t3_speed = ""
-        if 'Fiets' in sport:
+        if cat == 'Fiets' or cat == 'Virtueel':
             df_spd = df_s[(df_s['Gemiddelde_Snelheid_km_u'] > 10) & (df_s['Gemiddelde_Snelheid_km_u'] < 85)]
             t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', 'km/u', ascending=False)
-        elif 'Hardloop' in sport:
+        elif cat == 'Hardlopen':
             df_spd = df_s[(df_s['Gemiddelde_Snelheid_km_u'] > 5) & (df_s['Gemiddelde_Snelheid_km_u'] < 30)]
             t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', '', ascending=False, is_pace=True)
             
-        html += f"""<div class="hof-card"><div class="hof-header" style="color:{style['color']}"><span style="font-size:20px;margin-right:8px">{style['icon']}</span> {sport}</div><div class="hof-section"><div class="hof-label">Langste Afstand</div>{t3_dist}</div><div class="hof-section"><div class="hof-label">Snelste (Gem.) <span style="font-size:12px">{speed_icon}</span></div>{t3_speed if t3_speed else '<span style="color:#ccc;font-size:11px">-</span>'}</div><div class="hof-section" style="border:none"><div class="hof-label">Langste Duur</div>{t3_time}</div></div>"""
+        html += f"""<div class="hof-card"><div class="hof-header" style="color:{style['color']}"><span style="font-size:20px;margin-right:8px">{style['icon']}</span> {cat}</div><div class="hof-section"><div class="hof-label">Langste Afstand</div>{t3_dist}</div><div class="hof-section"><div class="hof-label">Snelste (Gem.) <span style="font-size:12px">{speed_icon}</span></div>{t3_speed if t3_speed else '<span style="color:#ccc;font-size:11px">-</span>'}</div><div class="hof-section" style="border:none"><div class="hof-label">Langste Duur</div>{t3_time}</div></div>"""
     return html + "</div>"
 
 def generate_detail_table(df, uid):
     if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten gevonden.</p>"
-    opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Activiteitstype'].unique())])
+    # Filter dropdown op Categorie
+    opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Categorie'].unique())])
     rows = ""
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
-        st = get_sport_style(r['Activiteitstype'])
+        st = get_sport_style(r['Categorie'])
         hr = f"{r['Gemiddelde_Hartslag']:.0f}" if pd.notna(r['Gemiddelde_Hartslag']) else "-"
         date_str = r["Datum"].strftime("%d-%m-%y") if pd.notna(r["Datum"]) else "-"
-        rows += f'<tr data-sport="{r["Activiteitstype"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{date_str}</td><td>{r["Activiteitstype"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
+        rows += f'<tr data-sport="{r["Categorie"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{date_str}</td><td>{r["Categorie"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
     return f"""<div class="detail-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px"><h3 style="margin:0;font-size:16px;">Logboek</h3><select id="sf-{uid}" onchange="filterTable('{uid}')" style="padding:5px;border-radius:6px;border:1px solid #ddd"><option value="ALL">Alles</option>{opts}</select></div><div style="overflow-x:auto"><table id="dt-{uid}"><thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead><tbody>{rows}</tbody></table></div></div>"""
 
-def genereer_manifest():
-    m = {"name":"Sport Jorden","short_name":"Sport","start_url":"./dashboard.html","display":"standalone","background_color":"#f8fafc","theme_color":"#0f172a","icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]}
-    with open('manifest.json', 'w') as f: json.dump(m, f)
-
-# --- CHART GENERATORS ---
 def create_cycling_chart(df_yr, df_prev, year):
+    # Gebruik Categorie ipv regex in chart
     df_yr = df_yr.sort_values('DagVanJaar'); df_prev = df_prev.sort_values('DagVanJaar')
     
-    # 2026
-    df_zwift = df_yr[df_yr['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
+    df_zwift = df_yr[df_yr['Categorie'] == 'Virtueel'].copy()
     df_zwift['C'] = df_zwift['Afstand_km'].cumsum()
-    df_out = df_yr[df_yr['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False) & ~df_yr['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
+    df_out = df_yr[df_yr['Categorie'] == 'Fiets'].copy()
     df_out['C'] = df_out['Afstand_km'].cumsum()
     
-    # 2025 (Reference)
-    df_zwift_prev = df_prev[df_prev['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
+    df_zwift_prev = df_prev[df_prev['Categorie'] == 'Virtueel'].copy()
     df_zwift_prev['C'] = df_zwift_prev['Afstand_km'].cumsum()
-    df_out_prev = df_prev[df_prev['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False) & ~df_prev['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
+    df_out_prev = df_prev[df_prev['Categorie'] == 'Fiets'].copy()
     df_out_prev['C'] = df_out_prev['Afstand_km'].cumsum()
     
     if df_zwift.empty and df_out.empty and df_out_prev.empty and df_zwift_prev.empty: return ""
@@ -383,9 +428,9 @@ def create_cycling_chart(df_yr, df_prev, year):
 
 def create_running_chart(df_yr, df_prev, year):
     df_yr = df_yr.sort_values('DagVanJaar'); df_prev = df_prev.sort_values('DagVanJaar')
-    df_run = df_yr[df_yr['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False)].copy()
+    df_run = df_yr[df_yr['Categorie'] == 'Hardlopen'].copy()
     df_run['C'] = df_run['Afstand_km'].cumsum()
-    df_ref = df_prev[df_prev['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False)].copy()
+    df_ref = df_prev[df_prev['Categorie'] == 'Hardlopen'].copy()
     df_ref['C'] = df_ref['Afstand_km'].cumsum()
     
     if df_run.empty and df_ref.empty: return ""
@@ -397,31 +442,31 @@ def create_running_chart(df_yr, df_prev, year):
 
 def create_donut_chart(df, year):
     if df.empty: return ""
-    stats = df.groupby('Activiteitstype')['Beweegtijd_sec'].sum().reset_index()
+    stats = df.groupby('Categorie')['Beweegtijd_sec'].sum().reset_index()
     if stats.empty: return ""
     colors = []
-    for sport in stats['Activiteitstype']:
-        st = get_sport_style(sport)
+    for cat in stats['Categorie']:
+        st = get_sport_style(cat)
         colors.append(st['color'])
-    fig = px.pie(stats, values='Beweegtijd_sec', names='Activiteitstype', title=f"Tijdsverdeling {year}", hole=0.5, color_discrete_sequence=colors)
+    fig = px.pie(stats, values='Beweegtijd_sec', names='Categorie', title=f"Tijdsverdeling {year}", hole=0.5, color_discrete_sequence=colors)
     fig.update_layout(template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     fig.update_traces(textinfo='percent+label', hovertemplate='%{label}: %{percent}')
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
 def create_monthly_split(df, year):
-    """Maakt twee staafgrafieken naast elkaar: Fiets vs Loop, dit jaar vs vorig jaar"""
-    df_cur = df[df['Jaar'] == year].copy()
-    df_prev = df[df['Jaar'] == year - 1].copy()
-    
+    df_cur = df[df['Jaar'] == year].copy(); df_prev = df[df['Jaar'] == year - 1].copy()
     if df_cur.empty and df_prev.empty: return ""
-    
-    df_cur['Maand'] = df_cur['Datum'].dt.month
-    df_prev['Maand'] = df_prev['Datum'].dt.month
+    df_cur['Maand'] = df_cur['Datum'].dt.month; df_prev['Maand'] = df_prev['Datum'].dt.month
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     
-    # 1. FIETS (Inclusief Virtual)
-    cur_bike = df_cur[df_cur['Activiteitstype'].str.contains('Fiets|Ride|Gravel|Virtual', case=False, na=False)]
-    prev_bike = df_prev[df_prev['Activiteitstype'].str.contains('Fiets|Ride|Gravel|Virtual', case=False, na=False)]
+    # 1. FIETS (Buiten + Virtueel voor maandoverzicht? Nee, splitsen is beter of samen? 
+    # User vroeg "afstand per maand opsplitsen in lopen en fietsen". Fietsen is meestal alles fietsen.
+    # Laten we Buiten + Virtueel samenvoegen voor "Fietsen totaal" in de maandgrafiek, 
+    # OF enkel buiten. Gezien de focus op doelen splitsen we ze misschien best?
+    # De user zei: "opsplitsen in lopen en fietsen". Ik pak ALLE fietsen (binnen+buiten) hier.
+    
+    cur_bike = df_cur[df_cur['Categorie'].isin(['Fiets', 'Virtueel'])]
+    prev_bike = df_prev[df_prev['Categorie'].isin(['Fiets', 'Virtueel'])]
     
     bike_m_cur = cur_bike.groupby('Maand')['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
     bike_m_prev = prev_bike.groupby('Maand')['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
@@ -429,11 +474,11 @@ def create_monthly_split(df, year):
     fig_bike = go.Figure()
     fig_bike.add_trace(go.Bar(x=months, y=bike_m_prev, name=str(year-1), marker_color='#cbd5e1'))
     fig_bike.add_trace(go.Bar(x=months, y=bike_m_cur, name=str(year), marker_color=COLORS['bike_out']))
-    fig_bike.update_layout(title="🚴 Afstand Fietsen (Maand)", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+    fig_bike.update_layout(title="🚴 Afstand Fietsen (Totaal)", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     
     # 2. LOOP
-    cur_run = df_cur[df_cur['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False)]
-    prev_run = df_prev[df_prev['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False)]
+    cur_run = df_cur[df_cur['Categorie'] == 'Hardlopen']
+    prev_run = df_prev[df_prev['Categorie'] == 'Hardlopen']
     
     run_m_cur = cur_run.groupby('Maand')['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
     run_m_prev = prev_run.groupby('Maand')['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
@@ -441,26 +486,26 @@ def create_monthly_split(df, year):
     fig_run = go.Figure()
     fig_run.add_trace(go.Bar(x=months, y=run_m_prev, name=str(year-1), marker_color='#cbd5e1'))
     fig_run.add_trace(go.Bar(x=months, y=run_m_cur, name=str(year), marker_color=COLORS['run']))
-    fig_run.update_layout(title="🏃 Afstand Lopen (Maand)", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+    fig_run.update_layout(title="🏃 Afstand Lopen", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
     
-    return f"""
-    <div style="display:flex; flex-wrap:wrap; gap:10px;">
-        <div style="flex:1; min-width:300px;" class="chart-box">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn")}</div>
-        <div style="flex:1; min-width:300px;" class="chart-box">{fig_run.to_html(full_html=False, include_plotlyjs="cdn")}</div>
-    </div>
-    """
+    return f"""<div style="display:flex; flex-wrap:wrap; gap:10px;"><div style="flex:1; min-width:300px;" class="chart-box">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn")}</div><div style="flex:1; min-width:300px;" class="chart-box">{fig_run.to_html(full_html=False, include_plotlyjs="cdn")}</div></div>"""
 
 def create_yearly_evolution(df):
-    df['Cat'] = 'Ander'
-    df.loc[df['Activiteitstype'].str.contains('Fiets|Ride|Gravel|Virtual', case=False, na=False), 'Cat'] = 'Fiets'
-    df.loc[df['Activiteitstype'].str.contains('Hardloop|Run', case=False, na=False), 'Cat'] = 'Loop'
-    stats = df.groupby(['Jaar', 'Cat'])['Afstand_km'].sum().unstack(fill_value=0)
+    stats = df.groupby(['Jaar', 'Categorie'])['Afstand_km'].sum().unstack(fill_value=0)
     if stats.empty: return ""
     years = stats.index
     fig = go.Figure()
-    if 'Fiets' in stats.columns: fig.add_trace(go.Bar(x=years, y=stats['Fiets'], name='Fietsen', marker_color=COLORS['bike_out']))
-    if 'Loop' in stats.columns: fig.add_trace(go.Bar(x=years, y=stats['Loop'], name='Lopen', marker_color=COLORS['run']))
-    fig.update_layout(title="Evolutie Afstand per Jaar", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
+    # Stapelen we Binnen en Buiten op voor "Fietsen"?
+    # User: "grafiek afstand totaal per fiets en lopen apart"
+    
+    # Fiets Totaal (Buiten + Virtueel)
+    bike_tot = stats.get('Fiets', 0) + stats.get('Virtueel', 0)
+    run_tot = stats.get('Hardlopen', 0)
+    
+    fig.add_trace(go.Bar(x=years, y=bike_tot, name='Fietsen (Tot)', marker_color=COLORS['bike_out']))
+    fig.add_trace(go.Bar(x=years, y=run_tot, name='Lopen', marker_color=COLORS['run']))
+        
+    fig.update_layout(title="Evolutie Totaal per Jaar", template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
 def create_heatmap(df, year):
@@ -481,7 +526,7 @@ def create_heatmap(df, year):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V29.1 (Fixed Color Key)...")
+    print("🚀 Start V31.0 (Strict Categorization)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -495,9 +540,6 @@ def genereer_dashboard():
     for c in ['Afstand_km', 'Hoogte_m', 'Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u']:
         if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
 
-    df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
-    df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
-    
     df = apply_data_logic(df)
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -536,26 +578,7 @@ def genereer_dashboard():
         tbl = generate_detail_table(df_yr, str(int(yr)))
 
         nav += f'<button class="nav-btn {"active" if is_cur else ""}" onclick="openTab(event, \'v-{int(yr)}\')">{int(yr)}</button>'
-        sects += f"""
-        <div id="v-{int(yr)}" class="tab-content" style="display:{"block" if is_cur else "none"}">
-            <h2 class="section-title">Overzicht {int(yr)}</h2>
-            {kpis}
-            <h3 class="section-subtitle">Per Sport</h3>
-            {generate_sport_cards(df_yr, df_prev_comp)}
-            <h3 class="section-subtitle">Maandelijkse Voortgang</h3>
-            {chart_monthly_split}
-            <div style="display:flex; gap:10px; overflow-x:auto;">
-               <div style="flex:1; min-width:280px;">{chart_donut}</div>
-            </div>
-            <h3 class="section-subtitle">Koersverloop</h3>
-            {chart_fiets}
-            {chart_loop}
-            <h3 class="section-subtitle">Consistentie</h3>
-            {chart_heatmap}
-            {top3}
-            {tbl}
-        </div>
-        """
+        sects += f"""<div id="v-{int(yr)}" class="tab-content" style="display:{"block" if is_cur else "none"}"><h2 class="section-title">Overzicht {int(yr)}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}<h3 class="section-subtitle">Maandelijkse Voortgang</h3>{chart_monthly_split}<div style="display:flex; gap:10px; overflow-x:auto;"><div style="flex:1; min-width:280px;">{chart_donut}</div></div><h3 class="section-subtitle">Koersverloop</h3>{chart_fiets}{chart_loop}<h3 class="section-subtitle">Consistentie</h3>{chart_heatmap}{top3}{tbl}</div>"""
 
     tbl_tot = generate_detail_table(df, "Tot")
     chart_donut_tot = create_donut_chart(df, "Totaal")
@@ -567,9 +590,7 @@ def genereer_dashboard():
         {generate_kpi("Km", f"{df['Afstand_km'].sum():,.0f}", "🌍")}
         {generate_kpi("Tijd", format_time(df['Beweegtijd_sec'].sum()), "⏱️")}
         </div>{generate_sport_cards(df, pd.DataFrame())}
-        <h3 class="section-subtitle">Jarenvergelijking</h3>
-        {chart_yearly_evol}
-        {chart_donut_tot}{tbl_tot}</div>"""
+        <h3 class="section-subtitle">Jarenvergelijking</h3>{chart_yearly_evol}{chart_donut_tot}{tbl_tot}</div>"""
     
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
@@ -586,15 +607,12 @@ def genereer_dashboard():
     .gold-banner {{ cursor:pointer; background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bg) 100%); color:white; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px; box-shadow:0 4px 6px -1px rgba(212, 175, 55, 0.3); transition: transform 0.1s; }}
     .gold-banner:active {{ transform: scale(0.98); }}
     .gold-icon {{ font-size:24px; }}
-    
-    /* STATS BOX STYLING */
     .stats-box-container {{ display:flex; gap:15px; margin-bottom:20px; flex-wrap:wrap; }}
     .goals-section, .streaks-section {{ flex:1; background:white; padding:15px; border-radius:12px; border:1px solid #e2e8f0; min-width:280px; }}
     .streak-row {{ display:flex; justify-content:space-between; margin-bottom:2px; font-size:13px; font-weight:600; }}
     .streak-label {{ color:#64748b; }}
     .streak-val {{ color:var(--primary); }}
     .streak-sub {{ font-size:11px; color:#94a3b8; text-align:right; margin-bottom:4px; font-style:italic; }}
-
     .nav{{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px;scrollbar-width:none}}.nav::-webkit-scrollbar{{display:none}}
     .nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:600;color:#64748b;transition:0.2s}}
     .nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}
@@ -634,7 +652,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V29.1) gegenereerd: Fixed Key Error.")
+    print("✅ Dashboard (V31.0) gegenereerd: Strict Categorization & Fixed Totals.")
 
 if __name__ == "__main__":
     genereer_dashboard()
