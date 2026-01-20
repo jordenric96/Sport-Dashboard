@@ -138,7 +138,7 @@ def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
             val_str = f"{int(pace_sec//60)}:{int(pace_sec%60):02d} /km"
         else:
             val_str = f"{val:.1f} {unit}"
-            if unit == 'u': val_str = format_time(val) # Tijd speciaal
+            if unit == 'u': val_str = format_time(val)
             
         html += f"""
         <div class="top3-item">
@@ -219,7 +219,7 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V13.1 (Fix Quotes)...")
+    print("🚀 Start V13.2 (Fix Quotes)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -276,7 +276,7 @@ def genereer_dashboard():
         nav += f'<button class="nav-btn {"active" if cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
         sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>{top3_html}{tbl}</div>'
 
-    # HIER ZAT DE FOUT: Nu aangepast met enkele quotes binnen de f-string
+    # FIX HIERONDER: Enkele quotes voor de colomnaam 'Afstand_km' en 'Beweegtijd_sec'
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
     sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">{generate_kpi("Sessies", len(df), "🏆")}{generate_kpi("Km", f"{df["Afstand_km"].sum():,.0f}", "🌍")}{generate_kpi("Tijd", format_time(df["Beweegtijd_sec"].sum()), "⏱️")}</div>{generate_sport_cards(df, pd.DataFrame())}{tbl_tot}</div>'
@@ -299,7 +299,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V13.1) gegenereerd: Quotes fixed.")
+    print("✅ Dashboard (V13.2) gegenereerd: Quotes fixed.")
 
 if __name__ == "__main__":
     genereer_dashboard()
