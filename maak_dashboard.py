@@ -9,10 +9,19 @@ import os
 
 # --- CONFIGURATIE ---
 COLORS = {
-    'primary': '#0f172a', 'gold': '#d4af37', 'silver': '#94a3b8', 'bronze': '#b45309',
-    'bg': '#f8fafc', 'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
-    'success': '#10b981', 'danger': '#ef4444', 
-    'chart_main': '#3b82f6', 'chart_sub': '#06b6d4', 'chart_sec': '#cbd5e1'
+    'primary': '#0f172a', 
+    'gold': '#d4af37', 
+    'silver': '#94a3b8', 
+    'bronze': '#b45309',
+    'bg': '#f8fafc', 
+    'card': '#ffffff', 
+    'text': '#1e293b', 
+    'text_light': '#64748b',
+    'success': '#10b981', 
+    'danger': '#ef4444', 
+    'chart_main': '#3b82f6', 
+    'chart_sub': '#06b6d4', 
+    'chart_sec': '#cbd5e1'
 }
 
 SPORT_CONFIG = {
@@ -45,51 +54,101 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def robust_date_parser(date_series):
+    # Probeer eerst standaard formaten
     dates = pd.to_datetime(date_series, errors='coerce')
+    
+    # Als dat faalt (bijv. Nederlandse maandnamen), probeer handmatige mapping
     if dates.isna().all():
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
-        for nl, en in dutch.items(): ds = ds.str.replace(nl, en, regex=False)
+        for nl, en in dutch.items(): 
+            ds = ds.str.replace(nl, en, regex=False)
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
     return dates
 
 # --- HTML GENERATOREN ---
+
 def generate_kpi(title, val, icon="", diff=""):
-    return f"""<div class="kpi-card"><div class="kpi-icon-box">{icon}</div>
-    <div class="kpi-content"><div class="kpi-title">{title}</div><div class="kpi-value">{val}</div><div class="kpi-sub">{diff}</div></div></div>"""
+    return f"""
+    <div class="kpi-card">
+        <div class="kpi-icon-box">{icon}</div>
+        <div class="kpi-content">
+            <div class="kpi-title">{title}</div>
+            <div class="kpi-value">{val}</div>
+            <div class="kpi-sub">{diff}</div>
+        </div>
+    </div>
+    """
 
 def generate_sport_cards(df_cur, df_prev):
     html = '<div class="sport-grid">'
     for sport in sorted(df_cur['Activiteitstype'].unique()):
         dfs = df_cur[df_cur['Activiteitstype'] == sport]
-        dfp = df_prev[df_prev['Activiteitstype'] == sport] if (df_prev is not None and not df_prev.empty) else pd.DataFrame()
+        
+        # Veilige manier om vorige data te pakken
+        dfp = pd.DataFrame()
+        if df_prev is not None and not df_prev.empty:
+            dfp = df_prev[df_prev['Activiteitstype'] == sport]
         
         st = get_sport_style(sport)
-        n = len(dfs); dist = dfs['Afstand_km'].sum(); tm = dfs['Beweegtijd_sec'].sum()
-        pn = len(dfp); pdist = dfp['Afstand_km'].sum() if not dfp.empty else 0
+        n = len(dfs)
+        dist = dfs['Afstand_km'].sum()
+        tm = dfs['Beweegtijd_sec'].sum()
         
+        pn = len(dfp)
+        pdist = dfp['Afstand_km'].sum() if not dfp.empty else 0
+        
+        # Afstand tonen of verbergen (Padel)
         dist_html = f'<div class="stat-col"><div class="label">Km</div><div class="val">{dist:,.0f}</div><div class="sub">{format_diff_html(dist, pdist, "km")}</div></div>'
-        if sport == 'Padel': dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
+        if sport == 'Padel': 
+            dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
         
         hr = dfs['Gemiddelde_Hartslag'].mean()
         hr_html = f'<div class="stat-row"><span>Hartslag</span> <strong class="hr-blur">{hr:.0f}</strong></div>' if pd.notna(hr) else ""
 
-        html += f"""<div class="sport-card"><div class="sport-header"><div class="sport-icon-circle" style="color:{st['color']};background:{st['color']}20">{st['icon']}</div><h3>{sport}</h3></div>
-        <div class="sport-body"><div class="stat-main">
-        <div class="stat-col"><div class="label">Sessies</div><div class="val">{n}</div><div class="sub">{format_diff_html(n, pn)}</div></div>
-        <div class="stat-divider"></div>{dist_html}</div>
-        <div class="sport-details"><div class="stat-row"><span>Tijd</span> <strong>{format_time(tm)}</strong></div>{hr_html}</div></div></div>"""
+        html += f"""
+        <div class="sport-card">
+            <div class="sport-header">
+                <div class="sport-icon-circle" style="color:{st['color']};background:{st['color']}20">{st['icon']}</div>
+                <h3>{sport}</h3>
+            </div>
+            <div class="sport-body">
+                <div class="stat-main">
+                    <div class="stat-col">
+                        <div class="label">Sessies</div>
+                        <div class="val">{n}</div>
+                        <div class="sub">{format_diff_html(n, pn)}</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    {dist_html}
+                </div>
+                <div class="sport-details">
+                    <div class="stat-row"><span>Tijd</span> <strong>{format_time(tm)}</strong></div>
+                    {hr_html}
+                </div>
+            </div>
+        </div>
+        """
     return html + '</div>'
 
 def generate_gear_section(df):
-    if 'Uitrusting voor activiteit' not in df.columns: return "<p>Geen kolom 'Uitrusting voor activiteit'</p>"
+    if 'Uitrusting voor activiteit' not in df.columns: 
+        return "<p>Geen kolom 'Uitrusting voor activiteit'</p>"
+    
     dfg = df.copy()
+    # Forceer naar string en verwijder leeg/NaN
     dfg['Uitrusting voor activiteit'] = dfg['Uitrusting voor activiteit'].fillna('').astype(str)
     dfg = dfg[dfg['Uitrusting voor activiteit'].str.strip() != '']
-    if dfg.empty: return "<p style='color:#999; text-align:center'>Geen uitrusting gevonden.</p>"
+    dfg = dfg[dfg['Uitrusting voor activiteit'].str.lower() != 'nan']
     
+    if dfg.empty: 
+        return "<p style='color:#999; text-align:center'>Geen uitrusting gevonden in de CSV.</p>"
+    
+    # Bereken statistieken
     stats = dfg.groupby('Uitrusting voor activiteit').agg(
-        Count=('Activiteitstype','count'), Km=('Afstand_km','sum'), Type=('Activiteitstype', lambda x: x.mode()[0])
+        Count=('Activiteitstype','count'), 
+        Km=('Afstand_km','sum'), 
+        Type=('Activiteitstype', lambda x: x.mode()[0] if not x.mode().empty else 'Onbekend')
     ).reset_index().sort_values('Km', ascending=False)
     
     html = '<div class="kpi-grid">'
@@ -108,24 +167,27 @@ def generate_gear_section(df):
             if r['Km'] > 15000: fun_txt = "🔧 Check ketting"
             else: fun_txt = "🚴 Lekker bezig"
 
-        html += f"""<div class="kpi-card" style="display:block; padding:20px;">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:15px">
-            <div style="font-size:28px;background:#f1f5f9;width:50px;height:50px;display:flex;align-items:center;justify-content:center;border-radius:12px">{icon}</div>
-            <div>
-                <div style="font-weight:700;font-size:16px;color:{COLORS['text']};margin-bottom:2px">{r['Uitrusting voor activiteit']}</div>
-                <div style="font-size:12px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div>
+        # Datum is hier weggehaald zoals gevraagd
+        html += f"""
+        <div class="kpi-card" style="display:block; padding:20px;">
+            <div style="display:flex;align-items:center;gap:15px;margin-bottom:15px">
+                <div style="font-size:28px;background:#f1f5f9;width:54px;height:54px;display:flex;align-items:center;justify-content:center;border-radius:12px">{icon}</div>
+                <div>
+                    <div style="font-weight:700;font-size:15px;color:{COLORS['text']};margin-bottom:4px;line-height:1.2">{r['Uitrusting voor activiteit']}</div>
+                    <div style="font-size:12px;color:{COLORS['text_light']}">{r['Count']} activiteiten</div>
+                </div>
             </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:8px">
-            <div style="font-size:24px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']}">km</span></div>
-            <div style="font-size:11px;font-weight:600;color:{col}">{fun_txt}</div>
-        </div>
-        <div style="background:#e2e8f0;height:8px;border-radius:4px;overflow:hidden"><div style="width:{pct}%;background:{col};height:100%"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:10px">
+                <div style="font-size:22px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} <span style="font-size:14px;color:{COLORS['text_light']};font-weight:500">km</span></div>
+                <div style="font-size:11px;font-weight:600;color:{col}">{fun_txt}</div>
+            </div>
+            <div style="background:#e2e8f0;height:6px;border-radius:3px;overflow:hidden">
+                <div style="width:{pct}%;background:{col};height:100%"></div>
+            </div>
         </div>"""
     return html + '</div>'
 
 def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
-    """Helper voor Top 3 lijstjes"""
     df_sorted = df.sort_values(col, ascending=ascending).head(3)
     if df_sorted.empty: return ""
     
@@ -134,7 +196,7 @@ def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
     for i, (idx, row) in enumerate(df_sorted.iterrows()):
         val = row[col]
         if is_pace:
-            pace_sec = 3600 / val
+            pace_sec = 3600 / val if val > 0 else 0
             val_str = f"{int(pace_sec//60)}:{int(pace_sec%60):02d} /km"
         else:
             val_str = f"{val:.1f} {unit}"
@@ -156,15 +218,16 @@ def generate_hall_of_fame(df):
     
     for sport in sports:
         if sport == 'Padel': continue
+        
+        # Filter op serieuze data > 1km
         df_s = df[(df['Activiteitstype'] == sport) & (df['Afstand_km'] > 1.0)]
         if df_s.empty: continue
         
         style = get_sport_style(sport)
         
-        # 1. Top 3 Afstand
+        # Top 3 genereren
         t3_dist = generate_top3_list(df_s, 'Afstand_km', 'km', ascending=False)
         
-        # 2. Top 3 Snelheid
         t3_speed = ""
         if 'Fiets' in sport:
             df_spd = df_s[df_s['Gemiddelde_Snelheid_km_u'] > 10]
@@ -173,10 +236,8 @@ def generate_hall_of_fame(df):
             df_spd = df_s[(df_s['Gemiddelde_Snelheid_km_u'] > 5) & (df_s['Gemiddelde_Snelheid_km_u'] < 25)]
             t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', '', ascending=False, is_pace=True)
             
-        # 3. Top 3 Duur
         t3_time = generate_top3_list(df_s, 'Beweegtijd_sec', 'u', ascending=False)
         
-        # Card bouwen
         html += f"""
         <div class="hof-card">
             <div class="hof-header" style="color:{style['color']}">
@@ -200,7 +261,9 @@ def generate_hall_of_fame(df):
     return html
 
 def generate_detail_table(df, uid):
-    if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten.</p>"
+    """Genereert een tabel met data van specifiek dit jaar."""
+    if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten dit jaar.</p>"
+    
     opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Activiteitstype'].unique())])
     rows = ""
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
@@ -208,82 +271,177 @@ def generate_detail_table(df, uid):
         hr = f"{r['Gemiddelde_Hartslag']:.0f}" if pd.notna(r['Gemiddelde_Hartslag']) else "-"
         rows += f'<tr data-sport="{r["Activiteitstype"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{r["Datum"].strftime("%d-%m-%y")}</td><td>{r["Activiteitstype"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
 
-    return f"""<div class="detail-section"><div style="display:flex;justify-content:space-between;margin-bottom:15px"><h3>Logboek {uid}</h3>
-    <select id="sf-{uid}" onchange="filterTable('{uid}')"><option value="ALL">Alles</option>{opts}</select></div>
-    <div style="overflow-x:auto"><table id="dt-{uid}"><thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead><tbody>{rows}</tbody></table></div></div>"""
+    return f"""
+    <div class="detail-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
+            <h3 style="margin:0;font-size:16px;">Logboek</h3>
+            <select id="sf-{uid}" onchange="filterTable('{uid}')" style="padding:5px;border-radius:6px;border:1px solid #ddd">
+                <option value="ALL">Alles</option>{opts}
+            </select>
+        </div>
+        <div style="overflow-x:auto">
+            <table id="dt-{uid}">
+                <thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>
+    </div>
+    """
 
 def genereer_manifest():
-    m = {"name":"Sport Jorden","short_name":"Sport","start_url":"./dashboard.html","display":"standalone","background_color":"#f8fafc","theme_color":"#0f172a",
-         "icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]}
+    m = {
+        "name":"Sport Jorden",
+        "short_name":"Sport",
+        "start_url":"./dashboard.html",
+        "display":"standalone",
+        "background_color":"#f8fafc",
+        "theme_color":"#0f172a",
+        "icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]
+    }
     with open('manifest.json', 'w') as f: json.dump(m, f)
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V13.2 (Fix Quotes)...")
-    try: df = pd.read_csv('activities.csv')
-    except: return print("❌ Geen activities.csv gevonden!")
+    print("🚀 Start V14.0 (Checked & Fixed)...")
+    try: 
+        df = pd.read_csv('activities.csv')
+    except: 
+        print("❌ Geen activities.csv gevonden!")
+        return
 
-    nm = {'Datum van activiteit':'Datum','Activiteitstype':'Activiteitstype','Beweegtijd':'Beweegtijd_sec','Afstand':'Afstand_km',
-          'Totale stijging':'Hoogte_m','Gemiddelde hartslag':'Gemiddelde_Hartslag','Uitrusting voor activiteit':'Uitrusting voor activiteit'}
+    # Data Cleaning & Renaming
+    nm = {
+        'Datum van activiteit':'Datum',
+        'Activiteitstype':'Activiteitstype',
+        'Beweegtijd':'Beweegtijd_sec',
+        'Afstand':'Afstand_km',
+        'Totale stijging':'Hoogte_m',
+        'Gemiddelde hartslag':'Gemiddelde_Hartslag',
+        'Uitrusting voor activiteit':'Uitrusting voor activiteit'
+    }
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
-    for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag']:
-        if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',','.'), errors='coerce')
     
+    # Numeriek maken (komma naar punt)
+    for c in ['Afstand_km','Hoogte_m','Gemiddelde_Hartslag']:
+        if c in df.columns: 
+            df[c] = pd.to_numeric(df[c].astype(str).str.replace(',','.'), errors='coerce')
+    
+    # Custom Types (Padel & Zwemmen)
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
 
+    # Datums
     df['Datum'] = robust_date_parser(df['Datum'])
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
     
     genereer_manifest()
     
+    # HTML Opbouw
     nav, sects = "", ""
-    ytd = datetime.now().dayofyear
+    today_doy = datetime.now().dayofyear
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     
     for yr in years:
-        cur = (yr == datetime.now().year)
-        dfy = df[df['Jaar'] == yr]
-        dfp = df[(df['Jaar'] == yr-1) & (df['DagVanJaar'] <= ytd)] if cur else df[df['Jaar'] == yr-1]
+        is_current_year = (yr == datetime.now().year)
+        df_yr = df[df['Jaar'] == yr]
         
-        sc = {'n': len(dfy), 'km': dfy['Afstand_km'].sum(), 'h': dfy['Hoogte_m'].sum(), 't': dfy['Beweegtijd_sec'].sum()}
-        sp = {'n': len(dfp), 'km': dfp['Afstand_km'].sum(), 'h': dfp['Hoogte_m'].sum(), 't': dfp['Beweegtijd_sec'].sum()}
+        # Vorige jaar data (YTD of Totaal)
+        df_prev_yr = df[df['Jaar'] == yr-1]
+        if is_current_year:
+            df_prev_comp = df_prev_yr[df_prev_yr['DagVanJaar'] <= today_doy]
+        else:
+            df_prev_comp = df_prev_yr
         
-        kpis = f"""<div class="kpi-grid">
-        {generate_kpi("Sessies", sc['n'], "🔥", format_diff_html(sc['n'], sp['n']))}
-        {generate_kpi("Afstand", f"{sc['km']:,.0f} km", "📏", format_diff_html(sc['km'], sp['km'], "km"))}
-        {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
-        {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html((sc['t']-sp['t'])/3600, 0, "u"))}</div>"""
+        # Stats berekenen
+        sc = {
+            'n': len(df_yr), 
+            'km': df_yr['Afstand_km'].sum(), 
+            'h': df_yr['Hoogte_m'].sum(), 
+            't': df_yr['Beweegtijd_sec'].sum()
+        }
+        sp = {
+            'n': len(df_prev_comp), 
+            'km': df_prev_comp['Afstand_km'].sum(), 
+            'h': df_prev_comp['Hoogte_m'].sum(), 
+            't': df_prev_comp['Beweegtijd_sec'].sum()
+        }
         
-        dfc = dfy.sort_values('DagVanJaar'); dfc['C'] = dfc['Afstand_km'].cumsum()
-        df_real = dfy[dfy['Activiteitstype'] != 'Virtuele fietsrit'].sort_values('DagVanJaar')
+        # KPI HTML (Let op de enkele quotes in f-strings!)
+        kpis = f"""
+        <div class="kpi-grid">
+            {generate_kpi("Sessies", sc['n'], "🔥", format_diff_html(sc['n'], sp['n']))}
+            {generate_kpi("Afstand", f"{sc['km']:,.0f} km", "📏", format_diff_html(sc['km'], sp['km'], "km"))}
+            {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
+            {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html((sc['t']-sp['t'])/3600, 0, "u"))}
+        </div>
+        """
+        
+        # Grafiek Data
+        df_cum = df_yr.sort_values('DagVanJaar')
+        df_cum['C'] = df_cum['Afstand_km'].cumsum()
+        
+        df_real = df_yr[df_yr['Activiteitstype'] != 'Virtuele fietsrit'].sort_values('DagVanJaar')
         df_real['C'] = df_real['Afstand_km'].cumsum()
-        dfpc = df[df['Jaar'] == yr-1].sort_values('DagVanJaar')
-        if cur: dfpc = dfpc[dfpc['DagVanJaar'] <= ytd]
-        dfpc['C'] = dfpc['Afstand_km'].cumsum()
         
+        df_prev_cum = df[df['Jaar'] == yr-1].sort_values('DagVanJaar')
+        if is_current_year: 
+            df_prev_cum = df_prev_cum[df_prev_cum['DagVanJaar'] <= today_doy]
+        df_prev_cum['C'] = df_prev_cum['Afstand_km'].cumsum()
+        
+        # Grafiek Tekenen
         fig = px.line(title=f"Koersverloop {yr}")
-        fig.add_scatter(x=dfc['DagVanJaar'], y=dfc['C'], name=f"Totaal {yr}", line_color=COLORS['chart_main'], line_width=3)
+        fig.add_scatter(x=df_cum['DagVanJaar'], y=df_cum['C'], name=f"Totaal {yr}", line_color=COLORS['chart_main'], line_width=3)
+        
+        # Alleen Real lijn tonen als er verschil is
         if len(df_real) > 0 and sc['km'] != df_real['Afstand_km'].sum():
              fig.add_scatter(x=df_real['DagVanJaar'], y=df_real['C'], name=f"Buiten (Real)", line_color=COLORS['chart_sub'], line_dash='dot', line_width=2)
-        if not dfpc.empty: fig.add_scatter(x=dfpc['DagVanJaar'], y=dfpc['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
+        
+        if not df_prev_cum.empty: 
+            fig.add_scatter(x=df_prev_cum['DagVanJaar'], y=df_prev_cum['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
+            
         fig.update_layout(template='plotly_white', margin=dict(t=30,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
         
-        top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(dfy)}'
-        tbl = generate_detail_table(dfy, str(yr))
+        # Top 3 & Tabel voor DIT jaar
+        top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(df_yr)}'
+        tbl = generate_detail_table(df_yr, str(yr))
 
-        nav += f'<button class="nav-btn {"active" if cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
-        sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>{top3_html}{tbl}</div>'
+        nav += f'<button class="nav-btn {"active" if is_current_year else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
+        
+        display_style = "block" if is_current_year else "none"
+        sects += f"""
+        <div id="v-{yr}" class="tab-content" style="display:{display_style}">
+            <h2 class="section-title">Overzicht {yr}</h2>
+            {kpis}
+            <h3 class="section-subtitle">Per Sport</h3>
+            {generate_sport_cards(df_yr, df_prev_comp)}
+            <div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>
+            {top3_html}
+            {tbl}
+        </div>
+        """
 
-    # FIX HIERONDER: Enkele quotes voor de colomnaam 'Afstand_km' en 'Beweegtijd_sec'
+    # Totaal Tab (FIXED: Enkele quotes gebruikt)
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
-    sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">{generate_kpi("Sessies", len(df), "🏆")}{generate_kpi("Km", f"{df["Afstand_km"].sum():,.0f}", "🌍")}{generate_kpi("Tijd", format_time(df["Beweegtijd_sec"].sum()), "⏱️")}</div>{generate_sport_cards(df, pd.DataFrame())}{tbl_tot}</div>'
+    sects += f"""
+    <div id="v-Tot" class="tab-content" style="display:none">
+        <h2 class="section-title">Carrière</h2>
+        <div class="kpi-grid">
+            {generate_kpi("Sessies", len(df), "🏆")}
+            {generate_kpi("Km", f"{df['Afstand_km'].sum():,.0f}", "🌍")}
+            {generate_kpi("Tijd", format_time(df['Beweegtijd_sec'].sum()), "⏱️")}
+        </div>
+        {generate_sport_cards(df, pd.DataFrame())}
+        {tbl_tot}
+    </div>
+    """
     
+    # Garage Tab
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
     
+    # HOF Tab
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
     sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
 
@@ -299,7 +457,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V13.2) gegenereerd: Quotes fixed.")
+    print("✅ Dashboard (V14.0) gegenereerd: Validated.")
 
 if __name__ == "__main__":
     genereer_dashboard()
