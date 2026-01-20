@@ -20,21 +20,21 @@ COLORS = {
     'text': '#1e293b', 
     'text_light': '#64748b',
     
-    # 2026 (FEL)
-    'zwift': '#ff6600',    # Fel Oranje
-    'bike_out': '#0099ff', # Fel Blauw
-    'run': '#fbbf24',      # Goud
+    # 4 DISTINCTE KLEUREN VOOR DE GRAFIEK
+    'bike_out_cur': '#2563eb',  # 2026 Buiten: Koningsblauw
+    'zwift_cur': '#ea580c',     # 2026 Zwift: Diep Oranje
     
-    # 2025 (LICHT/PASTEL voor contrast)
-    'zwift_prev': '#fdba74', # Zacht Oranje
-    'bike_out_prev': '#93c5fd', # Zacht Blauw
-    'run_prev': '#cbd5e1'    # Grijs
+    'bike_out_prev': '#60a5fa', # 2025 Buiten: Lichtblauw
+    'zwift_prev': '#fbbf24',    # 2025 Zwift: Goud/Geel
+    
+    'run_cur': '#10b981',       # 2026 Loop: Groen
+    'run_prev': '#94a3b8'       # 2025 Loop: Grijs
 }
 
 SPORT_CONFIG = {
-    'Fiets': {'icon': '🚴', 'color': COLORS['bike_out']},
-    'Virtuele fietsrit': {'icon': '👾', 'color': COLORS['zwift']},
-    'Hardloop': {'icon': '🏃', 'color': COLORS['run']},
+    'Fiets': {'icon': '🚴', 'color': COLORS['bike_out_cur']},
+    'Virtuele fietsrit': {'icon': '👾', 'color': COLORS['zwift_cur']},
+    'Hardloop': {'icon': '🏃', 'color': COLORS['run_cur']},
     'Wandel': {'icon': '🚶', 'color': '#10b981'},
     'Padel': {'icon': '🎾', 'color': '#84cc16'},
     'Zwemmen': {'icon': '🏊', 'color': '#3b82f6'},
@@ -74,7 +74,10 @@ def robust_date_parser(date_series):
 def apply_data_logic(df):
     df['Datum'] = robust_date_parser(df['Datum'])
     
-    # Proracer fix
+    # 1. ZWIFT FIX: Als 'Zwift' in de naam staat, maak het Virtueel (voor oude ritten)
+    df.loc[df['Naam activiteit'].str.contains('Zwift', case=False, na=False), 'Activiteitstype'] = 'Virtuele fietsrit'
+    
+    # 2. PRORACER FIX
     merida_rides = df[df['Uitrusting voor activiteit'].str.contains('Merida', case=False, na=False)]
     if not merida_rides.empty:
         first_merida_date = merida_rides['Datum'].min()
@@ -85,7 +88,7 @@ def apply_data_logic(df):
         )
         if mask.sum() > 0: df.loc[mask, 'Uitrusting voor activiteit'] = 'Proracer'
             
-    # Snelheid Fix
+    # 3. SNELHEID FIX
     if 'Gemiddelde_Snelheid_km_u' in df.columns:
         if df['Gemiddelde_Snelheid_km_u'].mean() < 10: df['Gemiddelde_Snelheid_km_u'] *= 3.6
     
@@ -104,7 +107,6 @@ def generate_kpi(title, val, icon="", diff=""):
     return f"""<div class="kpi-card"><div class="kpi-icon-box">{icon}</div><div class="kpi-content"><div class="kpi-title">{title}</div><div class="kpi-value">{val}</div><div class="kpi-sub">{diff}</div></div></div>"""
 
 def generate_gold_banner():
-    """Schone banner."""
     return """
     <div class="gold-banner" onclick="toggleHOF()">
         <div style="display:flex; align-items:center; gap:10px;">
@@ -192,7 +194,6 @@ def generate_hall_of_fame(df):
         
         style = get_sport_style(sport)
         
-        # SPECIFIEKE SYMBOLEN VOOR HOF
         speed_icon = "⚡"
         if 'Fiets' in sport: speed_icon = "🚴⚡"
         if 'Virtueel' in sport or 'Virtual' in sport: speed_icon = "👾⚡"
@@ -202,7 +203,6 @@ def generate_hall_of_fame(df):
         t3_time = generate_top3_list(df_s, 'Beweegtijd_sec', 'u', ascending=False)
         
         t3_speed = ""
-        # Filtering glitches (85km/h fiets, 30km/h loop)
         if 'Fiets' in sport:
             df_spd = df_s[(df_s['Gemiddelde_Snelheid_km_u'] > 10) & (df_s['Gemiddelde_Snelheid_km_u'] < 85)]
             t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', 'km/u', ascending=False)
@@ -228,33 +228,44 @@ def genereer_manifest():
     m = {"name":"Sport Jorden","short_name":"Sport","start_url":"./dashboard.html","display":"standalone","background_color":"#f8fafc","theme_color":"#0f172a","icons":[{"src":"1768922516256~2.jpg","sizes":"512x512","type":"image/jpeg"}]}
     with open('manifest.json', 'w') as f: json.dump(m, f)
 
-# --- CHART GENERATORS (V25.0: FULL SPLIT & SYMBOLS) ---
+# --- CHART GENERATORS (V26.0: 4 DISTINCT LINES) ---
 def create_cycling_chart(df_yr, df_prev, year):
     df_yr = df_yr.sort_values('DagVanJaar'); df_prev = df_prev.sort_values('DagVanJaar')
     
-    # 2026
+    # 2026 Data
     df_zwift = df_yr[df_yr['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
     df_zwift['C'] = df_zwift['Afstand_km'].cumsum()
+    
     df_out = df_yr[df_yr['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False) & ~df_yr['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
     df_out['C'] = df_out['Afstand_km'].cumsum()
     
-    # 2025 (Reference) - OOK GESPLITST
+    # 2025 Data (OOK GESPLITST)
     df_zwift_prev = df_prev[df_prev['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
     df_zwift_prev['C'] = df_zwift_prev['Afstand_km'].cumsum()
+    
     df_out_prev = df_prev[df_prev['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False) & ~df_prev['Activiteitstype'].str.contains('Virtual|Virtueel', case=False, na=False)].copy()
     df_out_prev['C'] = df_out_prev['Afstand_km'].cumsum()
     
+    # Als er echt niets is, geen grafiek
     if df_zwift.empty and df_out.empty and df_out_prev.empty and df_zwift_prev.empty: return ""
 
     fig = px.line(title=f"🚴 Wieler-Koers {year}")
     
-    # 2025 (Ref)
-    if not df_out_prev.empty: fig.add_scatter(x=df_out_prev['DagVanJaar'], y=df_out_prev['C'], name=f"🚴 Buiten {int(year)-1}", line_color=COLORS['bike_out_prev'], line_dash='dot')
-    if not df_zwift_prev.empty: fig.add_scatter(x=df_zwift_prev['DagVanJaar'], y=df_zwift_prev['C'], name=f"👾 Zwift {int(year)-1}", line_color=COLORS['zwift_prev'], line_dash='dot')
+    # 1. Buiten Vorig Jaar (Lichtblauw Stippel)
+    if not df_out_prev.empty: 
+        fig.add_scatter(x=df_out_prev['DagVanJaar'], y=df_out_prev['C'], name=f"🚴 Buiten {int(year)-1}", line_color=COLORS['bike_out_prev'], line_dash='dot')
     
-    # 2026 (Active)
-    if not df_out.empty: fig.add_scatter(x=df_out['DagVanJaar'], y=df_out['C'], name=f"🚴 Buiten {int(year)}", line_color=COLORS['bike_out'], line_width=3)
-    if not df_zwift.empty: fig.add_scatter(x=df_zwift['DagVanJaar'], y=df_zwift['C'], name=f"👾 Zwift {int(year)}", line_color=COLORS['zwift'], line_width=3)
+    # 2. Binnen Vorig Jaar (Geel Stippel)
+    if not df_zwift_prev.empty: 
+        fig.add_scatter(x=df_zwift_prev['DagVanJaar'], y=df_zwift_prev['C'], name=f"👾 Zwift {int(year)-1}", line_color=COLORS['zwift_prev'], line_dash='dot')
+    
+    # 3. Buiten Dit Jaar (Felblauw Solid)
+    if not df_out.empty: 
+        fig.add_scatter(x=df_out['DagVanJaar'], y=df_out['C'], name=f"🚴 Buiten {int(year)}", line_color=COLORS['bike_out_cur'], line_width=3)
+    
+    # 4. Binnen Dit Jaar (Feloranje Solid)
+    if not df_zwift.empty: 
+        fig.add_scatter(x=df_zwift['DagVanJaar'], y=df_zwift['C'], name=f"👾 Zwift {int(year)}", line_color=COLORS['zwift_cur'], line_width=3)
 
     fig.update_layout(template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
@@ -268,8 +279,12 @@ def create_running_chart(df_yr, df_prev, year):
     
     if df_run.empty and df_ref.empty: return ""
     fig = px.line(title=f"🏃 Hardloop-Koers {year}")
-    if not df_ref.empty: fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"🏃 {int(year)-1}", line_color=COLORS['run_prev'], line_dash='dot')
-    if not df_run.empty: fig.add_scatter(x=df_run['DagVanJaar'], y=df_run['C'], name=f"🏃 {int(year)}", line_color=COLORS['run'], line_width=3)
+    
+    if not df_ref.empty: 
+        fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"🏃 {int(year)-1}", line_color=COLORS['run_prev'], line_dash='dot')
+    if not df_run.empty: 
+        fig.add_scatter(x=df_run['DagVanJaar'], y=df_run['C'], name=f"🏃 {int(year)}", line_color=COLORS['run_cur'], line_width=3)
+        
     fig.update_layout(template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
@@ -288,7 +303,7 @@ def create_donut_chart(df, year):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V25.0 (Full Split & Symbols)...")
+    print("🚀 Start V26.0 (4 Distinct Lines & Zwift Fix)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -408,7 +423,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V25.0) gegenereerd: Full Split & Symbols.")
+    print("✅ Dashboard (V26.0) gegenereerd: 4 Distinct Lines & Zwift Fix.")
 
 if __name__ == "__main__":
     genereer_dashboard()
