@@ -2,9 +2,8 @@ name: Update Strava Data
 
 on:
   schedule:
-    # Draai elke dag om 06:00 en 18:00
-    - cron: '0 6,18 * * *'
-  workflow_dispatch: # Zorgt voor een knop om handmatig te testen
+    - cron: '0 6,18 * * *' # 06:00 en 18:00
+  workflow_dispatch:       # Handmatige knop
 
 permissions:
   contents: write
@@ -27,6 +26,7 @@ jobs:
         pip install pandas requests plotly
 
     - name: Run Strava Update Script
+      # Zelfs als je de slapende versie gebruikt, laten we dit staan voor de toekomst
       env:
         STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
         STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
@@ -40,6 +40,9 @@ jobs:
       run: |
         git config --global user.name "GitHub Action Bot"
         git config --global user.email "actions@github.com"
-        git add activities.csv dashboard.html
-        # Alleen committen als er daadwerkelijk nieuwe data is
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update: nieuwe activiteiten" && git push)
+        # Voeg alle bestanden toe die we nodig hebben
+        git add activities.csv dashboard.html manifest.json
+        # Probeer te committen, maar crash niet als er niets veranderd is
+        git commit -m "Automated update" || echo "⚠️ Geen wijzigingen om op te slaan."
+        git push || echo "⚠️ Niets om te pushen."
+        
