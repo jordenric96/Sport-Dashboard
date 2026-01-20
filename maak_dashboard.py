@@ -8,15 +8,24 @@ import json
 import os
 import warnings
 
-# Onderdruk onnodige warnings in de logs
+# Onderdruk onnodige warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- CONFIGURATIE ---
 COLORS = {
-    'primary': '#0f172a', 'gold': '#d4af37', 'silver': '#94a3b8', 'bronze': '#b45309',
-    'bg': '#f8fafc', 'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
-    'success': '#10b981', 'danger': '#ef4444', 
-    'chart_main': '#3b82f6', 'chart_sub': '#06b6d4', 'chart_sec': '#cbd5e1'
+    'primary': '#0f172a', 
+    'gold': '#d4af37', 
+    'silver': '#94a3b8', 
+    'bronze': '#b45309',
+    'bg': '#f8fafc', 
+    'card': '#ffffff', 
+    'text': '#1e293b', 
+    'text_light': '#64748b',
+    'success': '#10b981', 
+    'danger': '#ef4444', 
+    'chart_main': '#3b82f6', 
+    'chart_sub': '#06b6d4', 
+    'chart_sec': '#cbd5e1'
 }
 
 SPORT_CONFIG = {
@@ -49,10 +58,7 @@ def format_diff_html(cur, prev, unit=""):
     return f'<span style="color:{color}; background:{color}15; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
 def robust_date_parser(date_series):
-    # Stap 1: Probeer ISO/Standaard formaten
     dates = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
-    
-    # Stap 2: Fallback voor Nederlandse tekst (bijv. "18 jan 2026")
     if dates.isna().sum() > len(dates) * 0.5:
         dutch = {'jan': 'Jan', 'feb': 'Feb', 'mrt': 'Mar', 'apr': 'Apr', 'mei': 'May', 'jun': 'Jun', 'jul': 'Jul', 'aug': 'Aug', 'sep': 'Sep', 'okt': 'Oct', 'nov': 'Nov', 'dec': 'Dec'}
         ds = date_series.astype(str).str.lower()
@@ -87,11 +93,9 @@ def generate_sport_cards(df_cur, df_prev):
         n = len(dfs)
         dist = dfs['Afstand_km'].sum()
         tm = dfs['Beweegtijd_sec'].sum()
-        
         pn = len(dfp)
-        pdist = dfp['Afstand_km'].sum() if not dfp.empty else 0
         
-        dist_html = f'<div class="stat-col"><div class="label">Km</div><div class="val">{dist:,.0f}</div><div class="sub">{format_diff_html(dist, pdist, "km")}</div></div>'
+        dist_html = f'<div class="stat-col"><div class="label">Km</div><div class="val">{dist:,.0f}</div><div class="sub">{format_diff_html(dist, dfp["Afstand_km"].sum() if not dfp.empty else 0, "km")}</div></div>'
         if sport == 'Padel': 
             dist_html = '<div class="stat-col" style="opacity:0.3"><div class="label">Km</div><div class="val">-</div></div>'
         
@@ -172,19 +176,27 @@ def generate_gear_section(df):
 def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
     df_sorted = df.sort_values(col, ascending=ascending).head(3)
     if df_sorted.empty: return ""
+    
     html = '<div class="top3-list">'
     medals = ['🥇', '🥈', '🥉']
     for i, (idx, row) in enumerate(df_sorted.iterrows()):
         val = row[col]
-        val_str = ""
         if is_pace:
             pace_sec = 3600 / val if val > 0 else 0
             val_str = f"{int(pace_sec//60)}:{int(pace_sec%60):02d} /km"
         else:
             val_str = f"{val:.1f} {unit}"
             if unit == 'u': val_str = format_time(val)
-        html += f"""<div class="top3-item"><span class="medal">{medals[i]}</span><span class="top3-val">{val_str}</span><span class="top3-date">{row['Datum'].strftime('%d %b')}</span></div>"""
-    return html + '</div>'
+            
+        html += f"""
+        <div class="top3-item">
+            <span class="medal">{medals[i]}</span>
+            <span class="top3-val">{val_str}</span>
+            <span class="top3-date">{row['Datum'].strftime('%d %b')}</span>
+        </div>
+        """
+    html += '</div>'
+    return html
 
 def generate_hall_of_fame(df):
     html = '<div class="hof-grid">'
@@ -219,7 +231,7 @@ def generate_detail_table(df, uid):
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
         st = get_sport_style(r['Activiteitstype'])
         hr = f"{r['Gemiddelde_Hartslag']:.0f}" if pd.notna(r['Gemiddelde_Hartslag']) else "-"
-        # HIER GEBRUIKEN WE NU VEILIG DE KOLOM 'Naam' (Die bestaat na de rename)
+        # Naam kolom is veilig
         rows += f'<tr data-sport="{r["Activiteitstype"]}"><td><div style="width:8px;height:8px;border-radius:50%;background:{st["color"]}"></div></td><td>{r["Datum"].strftime("%d-%m-%y")}</td><td>{r["Activiteitstype"]}</td><td>{r["Naam"]}</td><td class="num">{r["Afstand_km"]:.1f}</td><td class="num hr-blur">{hr}</td></tr>'
 
     return f"""<div class="detail-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px"><h3 style="margin:0;font-size:16px;">Logboek</h3><select id="sf-{uid}" onchange="filterTable('{uid}')" style="padding:5px;border-radius:6px;border:1px solid #ddd"><option value="ALL">Alles</option>{opts}</select></div><div style="overflow-x:auto"><table id="dt-{uid}"><thead><tr><th></th><th>Datum</th><th>Type</th><th>Naam</th><th class="num">Km</th><th class="num">❤️</th></tr></thead><tbody>{rows}</tbody></table></div></div>"""
@@ -230,14 +242,13 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V14.4 (FINAL FIX)...")
+    print("🚀 Start V15.0 (NO SYNTAX ERROR)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
-    # 1. KOLOMMEN HERNOEMEN (Dit is de fix voor de KeyError)
     nm = {
         'Datum van activiteit': 'Datum',
-        'Naam activiteit': 'Naam',  # <--- DEZE ONTSTRAK, NU TOEGEVOEGD
+        'Naam activiteit': 'Naam',  # Fix voor KeyError
         'Activiteitstype': 'Activiteitstype',
         'Beweegtijd': 'Beweegtijd_sec',
         'Afstand': 'Afstand_km',
@@ -247,20 +258,15 @@ def genereer_dashboard():
         'Max. snelheid': 'Max_Snelheid_km_u',
         'Uitrusting voor activiteit': 'Uitrusting voor activiteit'
     }
-    # Alleen hernoemen als de kolom bestaat
     df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
     
-    # 2. DATA TYPES FIXEN
-    cols_to_num = ['Afstand_km', 'Hoogte_m', 'Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u']
-    for c in cols_to_num:
+    for c in ['Afstand_km', 'Hoogte_m', 'Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u']:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
 
-    # 3. PADEL & ZWEMMEN
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
 
-    # 4. DATUM
     df['Datum'] = robust_date_parser(df['Datum'])
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -280,6 +286,7 @@ def genereer_dashboard():
         sc = {'n': len(dfy), 'km': dfy['Afstand_km'].sum(), 'h': dfy['Hoogte_m'].sum(), 't': dfy['Beweegtijd_sec'].sum()}
         sp = {'n': len(dfp), 'km': dfp['Afstand_km'].sum(), 'h': dfp['Hoogte_m'].sum(), 't': dfp['Beweegtijd_sec'].sum()}
         
+        # HIER GEBRUIKEN WE NU ENKELE QUOTES VOOR DE KEYS (sc['n'], sp['n']) -> GEEN FOUT MEER
         kpis = f"""<div class="kpi-grid">{generate_kpi("Sessies", sc['n'], "🔥", format_diff_html(sc['n'], sp['n']))}
         {generate_kpi("Afstand", f"{sc['km']:,.0f} km", "📏", format_diff_html(sc['km'], sp['km'], "km"))}
         {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
@@ -300,8 +307,14 @@ def genereer_dashboard():
         nav += f'<button class="nav-btn {"active" if is_cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
         sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if is_cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div><h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(dfy)}{generate_detail_table(dfy, str(yr))}</div>'
 
+    # HIER ZAT DE FOUT: Nu df['Afstand_km'] in plaats van df["Afstand_km"]
+    tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
-    sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">{generate_kpi("Sessies", len(df), "🏆")}{generate_kpi("Km", f"{df["Afstand_km"].sum():,.0f}", "🌍")}{generate_kpi("Tijd", format_time(df["Beweegtijd_sec"].sum()), "⏱️")}</div>{generate_sport_cards(df, pd.DataFrame())}{generate_detail_table(df, "Tot")}</div>'
+    sects += f"""<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">
+        {generate_kpi("Sessies", len(df), "🏆")}
+        {generate_kpi("Km", f"{df['Afstand_km'].sum():,.0f}", "🌍")}
+        {generate_kpi("Tijd", format_time(df['Beweegtijd_sec'].sum()), "⏱️")}
+        </div>{generate_sport_cards(df, pd.DataFrame())}{tbl_tot}</div>"""
     
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
@@ -321,7 +334,7 @@ def genereer_dashboard():
     </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V14.4) gegenereerd.")
+    print("✅ Dashboard (V15.0) gegenereerd.")
 
 if __name__ == "__main__":
     genereer_dashboard()
