@@ -84,7 +84,8 @@ def robust_date_parser(date_series):
 def determine_category(row):
     """Bepaalt de hoofdcategorie op basis van Activiteitstype en Naam"""
     atype = str(row['Activiteitstype']).lower()
-    anaam = str(row['Naam activiteit']).lower()
+    # FIX: We gebruiken hier 'Naam' omdat de kolom al hernoemd is voor deze functie wordt aangeroepen
+    anaam = str(row['Naam']).lower() 
     
     # 1. ZWIFT / VIRTUEEL (Heeft voorrang)
     # Als 'virtu' in type staat OF 'zwift' in de naam -> Virtueel
@@ -195,16 +196,7 @@ def calculate_streaks(df):
     weeks = sorted(valid['ISO_Week'].unique())
     
     cur_week = 0; max_week = 0
-    if len(weeks) > 0:
-        curr_iso = datetime.now().isocalendar().year * 100 + datetime.now().isocalendar().week
-        prev_iso = (datetime.now() - timedelta(weeks=1)).isocalendar().year * 100 + (datetime.now() - timedelta(weeks=1)).isocalendar().week
-        
-        # Check current streak
-        last_w = weeks[-1]
-        # Simpele check: als laatste week == deze week of vorige week
-        # Let op: jaarwissel (202552 -> 202601) is lastig met simpele wiskunde.
-        # We gebruiken datum-diff van de 'WeekStart' logica die we eerder hadden, die was beter.
-        
+    
     # Herkans met datum-based week logic
     valid['WeekStart'] = valid['Datum'].dt.to_period('W').dt.start_time
     wk_dates = sorted(valid['WeekStart'].unique())
@@ -459,12 +451,7 @@ def create_monthly_split(df, year):
     df_cur['Maand'] = df_cur['Datum'].dt.month; df_prev['Maand'] = df_prev['Datum'].dt.month
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     
-    # 1. FIETS (Buiten + Virtueel voor maandoverzicht? Nee, splitsen is beter of samen? 
-    # User vroeg "afstand per maand opsplitsen in lopen en fietsen". Fietsen is meestal alles fietsen.
-    # Laten we Buiten + Virtueel samenvoegen voor "Fietsen totaal" in de maandgrafiek, 
-    # OF enkel buiten. Gezien de focus op doelen splitsen we ze misschien best?
-    # De user zei: "opsplitsen in lopen en fietsen". Ik pak ALLE fietsen (binnen+buiten) hier.
-    
+    # 1. FIETS (Inclusief Virtual)
     cur_bike = df_cur[df_cur['Categorie'].isin(['Fiets', 'Virtueel'])]
     prev_bike = df_prev[df_prev['Categorie'].isin(['Fiets', 'Virtueel'])]
     
@@ -495,8 +482,6 @@ def create_yearly_evolution(df):
     if stats.empty: return ""
     years = stats.index
     fig = go.Figure()
-    # Stapelen we Binnen en Buiten op voor "Fietsen"?
-    # User: "grafiek afstand totaal per fiets en lopen apart"
     
     # Fiets Totaal (Buiten + Virtueel)
     bike_tot = stats.get('Fiets', 0) + stats.get('Virtueel', 0)
@@ -526,7 +511,7 @@ def create_heatmap(df, year):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V31.0 (Strict Categorization)...")
+    print("🚀 Start V31.1 (Fixed Key Error in Logic)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -540,6 +525,9 @@ def genereer_dashboard():
     for c in ['Afstand_km', 'Hoogte_m', 'Gemiddelde_Hartslag', 'Gemiddelde_Snelheid_km_u', 'Max_Snelheid_km_u']:
         if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce')
 
+    df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
+    df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
+    
     df = apply_data_logic(df)
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -652,7 +640,7 @@ def genereer_dashboard():
     function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V31.0) gegenereerd: Strict Categorization & Fixed Totals.")
+    print("✅ Dashboard (V31.1) gegenereerd: Fixed Key Error.")
 
 if __name__ == "__main__":
     genereer_dashboard()
