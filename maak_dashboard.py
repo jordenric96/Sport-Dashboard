@@ -53,13 +53,12 @@ def format_diff_html(current, previous, unit="", inverse=False):
     color = COLORS['success'] if is_good else COLORS['danger']
     arrow = "▲" if diff > 0 else "▼"
     
-    # Als de unit 'u' (uren) is, toon 1 decimaal, anders 0 of 1 afhankelijk van grootte
     if unit == 'u':
         val_str = f"{abs(diff):.1f}"
     else:
         val_str = f"{abs(diff):.1f}" if isinstance(diff, float) else f"{abs(int(diff))}"
     
-    bg = f"{color}15" # Transparante achtergrond
+    bg = f"{color}15"
     return f'<span style="color:{color}; background:{bg}; padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.85em;">{arrow} {val_str} {unit}</span>'
 
 def get_sport_style(sport_name):
@@ -105,7 +104,6 @@ def generate_sport_cards(df_cur, df_prev):
     for sport in sports:
         df_s_cur = df_cur[df_cur['Activiteitstype'] == sport]
         
-        # Specifieke vergelijking per sport
         if df_prev is not None and not df_prev.empty:
             df_s_prev = df_prev[df_prev['Activiteitstype'] == sport]
             prev_count = len(df_s_prev)
@@ -123,26 +121,13 @@ def generate_sport_cards(df_cur, df_prev):
         diff_count = format_diff_html(count, prev_count)
         diff_dist = format_diff_html(dist, prev_dist, "km")
         
-        # Padel logic: verberg afstand
         is_padel = (sport == 'Padel')
         
         if is_padel:
-            dist_html = f"""
-            <div class="stat-col" style="opacity:0.3;">
-                <div class="label">Afstand</div>
-                <div class="val">-</div>
-            </div>
-            """
+            dist_html = f"""<div class="stat-col" style="opacity:0.3;"><div class="label">Afstand</div><div class="val">-</div></div>"""
         else:
-            dist_html = f"""
-            <div class="stat-col">
-                <div class="label">Afstand</div>
-                <div class="val">{dist:,.0f} <small>km</small></div>
-                <div class="sub">{diff_dist}</div>
-            </div>
-            """
+            dist_html = f"""<div class="stat-col"><div class="label">Afstand</div><div class="val">{dist:,.0f} <small>km</small></div><div class="sub">{diff_dist}</div></div>"""
 
-        # Extra stat (Snelste/Langste)
         extra_stat = ""
         if 'Fiets' in sport:
             real_rides = df_s_cur[df_s_cur['Afstand_km'] > 5]
@@ -183,21 +168,17 @@ def generate_hall_of_fame(df):
     
     for sport in sports:
         if sport == 'Padel': continue
-
-        # Filter: alleen serieuze activiteiten (bv > 1km)
         df_s = df[(df['Activiteitstype'] == sport) & (df['Afstand_km'] > 1.0)]
         if df_s.empty: continue
         
         style = get_sport_style(sport)
         records = []
         
-        # 1. Langste Afstand
         idx_dist = df_s['Afstand_km'].idxmax()
         if pd.notna(idx_dist):
             row = df_s.loc[idx_dist]
             records.append({'label': 'Langste Afstand', 'val': f"{row['Afstand_km']:.1f} km", 'date': row['Datum'], 'icon': '📏'})
         
-        # 2. Snelste
         if 'Fiets' in sport:
             df_speed = df_s[df_s['Gemiddelde_Snelheid_km_u'] > 10]
             if not df_speed.empty:
@@ -214,7 +195,6 @@ def generate_hall_of_fame(df):
                 pace = f"{int(pace_sec//60)}:{int(pace_sec%60):02d} /km"
                 records.append({'label': 'Snelste Tempo', 'val': pace, 'date': row['Datum'], 'icon': '⚡'})
 
-        # 3. Langste Duur
         idx_time = df_s['Beweegtijd_sec'].idxmax()
         if pd.notna(idx_time):
              row = df_s.loc[idx_time]
@@ -233,18 +213,24 @@ def generate_hall_of_fame(df):
                     <div class="hof-date">{r['date'].strftime('%d %b %Y')}</div>
                 </div>
             </div>"""
-            
         html += f"""<div class="hof-card"><div class="hof-header"><h3 style="color:{style['color']}">{style['icon']} {sport}</h3></div><div class="hof-body">{rec_html}</div></div>"""
-    
     html += "</div>"
     return html
 
 def generate_gear_section(df):
+    """Genereert de Garage view, VEILIG voor mixed data types"""
     if 'Uitrusting voor activiteit' not in df.columns:
         return "<p style='text-align:center; color:#999'>Geen uitrusting data gevonden.</p>"
     
-    df_gear = df.dropna(subset=['Uitrusting voor activiteit'])
-    df_gear = df_gear[df_gear['Uitrusting voor activiteit'].str.strip() != '']
+    # --- DE FIX: FORCEER NAAR STRING ---
+    df_gear = df.copy()
+    df_gear['Uitrusting voor activiteit'] = df_gear['Uitrusting voor activiteit'].fillna('').astype(str)
+    
+    # Nu filteren we veilig
+    df_gear = df_gear[
+        (df_gear['Uitrusting voor activiteit'].str.strip() != '') & 
+        (df_gear['Uitrusting voor activiteit'].str.lower() != 'nan')
+    ]
 
     if df_gear.empty:
          return "<p style='text-align:center; color:#999'>Nog geen uitrusting gebruikt.</p>"
@@ -299,14 +285,13 @@ def genereer_manifest():
     with open('manifest.json', 'w') as f: json.dump(manifest, f)
 
 def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html'):
-    print("🚀 Start Generatie V8 (Met Totale Tijd)...")
+    print("🚀 Start Generatie V8.1 (Fix Gear Crash)...")
     try:
         df = pd.read_csv(csv_input)
     except:
         print("❌ CSV niet gevonden.")
         return
 
-    # CLEANING
     df = df.rename(columns={
         'Datum van activiteit': 'Datum', 'Naam activiteit': 'Naam', 
         'Activiteitstype': 'Activiteitstype', 'Beweegtijd': 'Beweegtijd_sec',
@@ -342,7 +327,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
     max_datum = df['Datum'].max()
     ytd_day = max_datum.dayofyear if max_datum.year == huidig_jaar else 366
 
-    # GENERATIE
     genereer_manifest()
 
     nav_html = ""
@@ -357,21 +341,9 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         df_prev_all = df[df['Jaar'] == prev]
         df_prev_ytd = df_prev_all[df_prev_all['DagVanJaar'] <= ytd_day] if is_cur else df_prev_all
         
-        # Calculate stats
-        sc = {
-            'n': len(df_j), 
-            'km': df_j['Afstand_km'].sum(), 
-            'h': df_j['Hoogte_m'].sum(),
-            't': df_j['Beweegtijd_sec'].sum() # Totale Tijd (sec)
-        }
-        sp = {
-            'n': len(df_prev_ytd), 
-            'km': df_prev_ytd['Afstand_km'].sum(), 
-            'h': df_prev_ytd['Hoogte_m'].sum(),
-            't': df_prev_ytd['Beweegtijd_sec'].sum()
-        }
+        sc = {'n': len(df_j), 'km': df_j['Afstand_km'].sum(), 'h': df_j['Hoogte_m'].sum(), 't': df_j['Beweegtijd_sec'].sum()}
+        sp = {'n': len(df_prev_ytd), 'km': df_prev_ytd['Afstand_km'].sum(), 'h': df_prev_ytd['Hoogte_m'].sum(), 't': df_prev_ytd['Beweegtijd_sec'].sum()}
         
-        # Format Time Diff (in Uren)
         time_diff_hours = (sc['t'] - sp['t']) / 3600
         
         kpis = f"""<div class="kpi-grid">
@@ -381,7 +353,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
             {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html(time_diff_hours, 0, "u"))}
         </div>"""
         
-        # Grafiek
         df_cum = df_j.sort_values('DagVanJaar')[['DagVanJaar', 'Afstand_km']].copy()
         df_cum['Cum'] = df_cum['Afstand_km'].cumsum()
         df_cum_p = df_prev_all.sort_values('DagVanJaar')[['DagVanJaar', 'Afstand_km']].copy()
@@ -406,7 +377,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         </div>
         """
 
-    # TOTAAL
     nav_html += '<button class="nav-btn" onclick="openTab(event, \'view-Total\')">Totaal</button>'
     tk_n = len(df); tk_km = df['Afstand_km'].sum(); tk_time = df['Beweegtijd_sec'].sum()
     sections_html += f"""<div id="view-Total" class="tab-content" style="display:none;">
@@ -419,21 +389,18 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
         {generate_sport_cards(df, None)}
     </div>"""
 
-    # GARAGE
     nav_html += '<button class="nav-btn" onclick="openTab(event, \'view-Garage\')">Garage</button>'
     sections_html += f"""<div id="view-Garage" class="tab-content" style="display:none;">
         <h2 class="section-title">De Garage</h2>
         {generate_gear_section(df)}
     </div>"""
 
-    # HOF
     nav_html += '<button class="nav-btn" onclick="openTab(event, \'view-HOF\')">Records</button>'
     sections_html += f"""<div id="view-HOF" class="tab-content" style="display:none;">
         <h2 class="section-title">Eregalerij</h2>
         {generate_hall_of_fame(df)}
     </div>"""
 
-    # TABEL
     opt = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Activiteitstype'].unique())])
     rows = ""
     for _, row in df.sort_values('Datum', ascending=False).iterrows():
@@ -465,7 +432,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
             body {{ font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; padding-bottom: 80px; -webkit-tap-highlight-color: transparent; }}
             .container {{ max-width: 1000px; margin: 0 auto; }}
             
-            /* Titels */
             h1 {{ margin: 0; font-size: 26px; font-weight: 700; color: var(--primary); letter-spacing:-0.5px; display:flex; align-items:center; gap:10px; }}
             h1::after {{ content:''; display:block; width:50px; height:3px; background:var(--gold); margin-left:15px; border-radius:2px; opacity:0.6; }}
             
@@ -473,19 +439,16 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
             .lock-btn {{ background: white; border: 1px solid #cbd5e1; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; color: #64748b; transition:0.2s; }}
             .lock-btn:hover {{ border-color:var(--gold); color:var(--primary); }}
             
-            /* Nav */
             .nav {{ display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; margin-bottom: 25px; scrollbar-width: none; }}
             .nav::-webkit-scrollbar {{ display: none; }}
             .nav-btn {{ flex: 0 0 auto; background: white; border: 1px solid #e2e8f0; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }}
             .nav-btn.active {{ background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2); }}
             
-            /* Grids */
             .kpi-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 30px; }}
             .sport-grid, .hof-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }}
             
             .kpi-card, .sport-card, .hof-card, .chart-box, .detail-section {{ background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); border:1px solid #f1f5f9; }}
             
-            /* Sport Card */
             .sport-header {{ display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }}
             .sport-icon-circle {{ width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
             .sport-header h3 {{ margin:0; font-size:18px; font-weight:700; color:var(--text); }}
@@ -501,7 +464,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
             .stat-row {{ display: flex; justify-content: space-between; margin-bottom: 6px; color:#64748b; }}
             .stat-row strong {{ color:var(--text); }}
             
-            /* HOF */
             .hof-header {{ border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 10px; font-weight: 700; }}
             .hof-record {{ display: flex; gap: 12px; margin-bottom: 12px; align-items:center; }}
             .hof-icon {{ font-size:18px; width:24px; text-align:center; }}
@@ -510,7 +472,6 @@ def genereer_dashboard(csv_input='activities.csv', html_output='dashboard.html')
             .hof-label {{ font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:600; }}
             .hof-date {{ font-size:11px; color:#94a3b8; }}
 
-            /* Table */
             .detail-header {{ display: flex; justify-content: space-between; margin-bottom: 15px; }}
             table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
             th {{ text-align: left; color: #94a3b8; font-size: 11px; text-transform: uppercase; padding: 12px 10px; font-weight:700; }}
