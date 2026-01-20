@@ -219,7 +219,7 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V13 (Top 3 Records overal)...")
+    print("🚀 Start V13.1 (Fix Quotes)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -270,13 +270,13 @@ def genereer_dashboard():
         if not dfpc.empty: fig.add_scatter(x=dfpc['DagVanJaar'], y=dfpc['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
         fig.update_layout(template='plotly_white', margin=dict(t=30,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
         
-        # TOP 3 PER JAAR
         top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(dfy)}'
         tbl = generate_detail_table(dfy, str(yr))
 
         nav += f'<button class="nav-btn {"active" if cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
         sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>{top3_html}{tbl}</div>'
 
+    # HIER ZAT DE FOUT: Nu aangepast met enkele quotes binnen de f-string
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
     sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">{generate_kpi("Sessies", len(df), "🏆")}{generate_kpi("Km", f"{df["Afstand_km"].sum():,.0f}", "🌍")}{generate_kpi("Tijd", format_time(df["Beweegtijd_sec"].sum()), "⏱️")}</div>{generate_sport_cards(df, pd.DataFrame())}{tbl_tot}</div>'
@@ -284,7 +284,6 @@ def genereer_dashboard():
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
     
-    # HOF Tab (Global Records)
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
     sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
 
@@ -300,7 +299,7 @@ def genereer_dashboard():
         </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V13) gegenereerd: Top 3 & Jaar Records.")
+    print("✅ Dashboard (V13.1) gegenereerd: Quotes fixed.")
 
 if __name__ == "__main__":
     genereer_dashboard()
