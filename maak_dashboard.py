@@ -9,8 +9,8 @@ import os
 
 # --- CONFIGURATIE ---
 COLORS = {
-    'primary': '#0f172a', 'gold': '#d4af37', 'bg': '#f8fafc',
-    'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
+    'primary': '#0f172a', 'gold': '#d4af37', 'silver': '#94a3b8', 'bronze': '#b45309',
+    'bg': '#f8fafc', 'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
     'success': '#10b981', 'danger': '#ef4444', 
     'chart_main': '#3b82f6', 'chart_sub': '#06b6d4', 'chart_sec': '#cbd5e1'
 }
@@ -99,7 +99,6 @@ def generate_gear_section(df):
         pct = min(100, (r['Km']/max_k)*100)
         col = COLORS['success'] if pct < 50 else (COLORS['gold'] if pct < 80 else COLORS['danger'])
         
-        # Fun Indicator
         fun_txt = ""
         if icon == '👟':
             if r['Km'] > 800: fun_txt = "💀 Tijd voor nieuwe?"
@@ -125,6 +124,81 @@ def generate_gear_section(df):
         </div>"""
     return html + '</div>'
 
+def generate_top3_list(df, col, unit, ascending=False, is_pace=False):
+    """Helper voor Top 3 lijstjes"""
+    df_sorted = df.sort_values(col, ascending=ascending).head(3)
+    if df_sorted.empty: return ""
+    
+    html = '<div class="top3-list">'
+    medals = ['🥇', '🥈', '🥉']
+    for i, (idx, row) in enumerate(df_sorted.iterrows()):
+        val = row[col]
+        if is_pace:
+            pace_sec = 3600 / val
+            val_str = f"{int(pace_sec//60)}:{int(pace_sec%60):02d} /km"
+        else:
+            val_str = f"{val:.1f} {unit}"
+            if unit == 'u': val_str = format_time(val) # Tijd speciaal
+            
+        html += f"""
+        <div class="top3-item">
+            <span class="medal">{medals[i]}</span>
+            <span class="top3-val">{val_str}</span>
+            <span class="top3-date">{row['Datum'].strftime('%d %b')}</span>
+        </div>
+        """
+    html += '</div>'
+    return html
+
+def generate_hall_of_fame(df):
+    html = '<div class="hof-grid">'
+    sports = sorted(df['Activiteitstype'].unique())
+    
+    for sport in sports:
+        if sport == 'Padel': continue
+        df_s = df[(df['Activiteitstype'] == sport) & (df['Afstand_km'] > 1.0)]
+        if df_s.empty: continue
+        
+        style = get_sport_style(sport)
+        
+        # 1. Top 3 Afstand
+        t3_dist = generate_top3_list(df_s, 'Afstand_km', 'km', ascending=False)
+        
+        # 2. Top 3 Snelheid
+        t3_speed = ""
+        if 'Fiets' in sport:
+            df_spd = df_s[df_s['Gemiddelde_Snelheid_km_u'] > 10]
+            t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', 'km/u', ascending=False)
+        elif 'Hardloop' in sport:
+            df_spd = df_s[(df_s['Gemiddelde_Snelheid_km_u'] > 5) & (df_s['Gemiddelde_Snelheid_km_u'] < 25)]
+            t3_speed = generate_top3_list(df_spd, 'Gemiddelde_Snelheid_km_u', '', ascending=False, is_pace=True)
+            
+        # 3. Top 3 Duur
+        t3_time = generate_top3_list(df_s, 'Beweegtijd_sec', 'u', ascending=False)
+        
+        # Card bouwen
+        html += f"""
+        <div class="hof-card">
+            <div class="hof-header" style="color:{style['color']}">
+                <span style="font-size:20px;margin-right:8px">{style['icon']}</span> {sport}
+            </div>
+            <div class="hof-section">
+                <div class="hof-label">Langste Afstand</div>
+                {t3_dist}
+            </div>
+            <div class="hof-section">
+                <div class="hof-label">Snelste (Gem.)</div>
+                {t3_speed if t3_speed else '<span style="color:#ccc;font-size:11px">-</span>'}
+            </div>
+            <div class="hof-section" style="border:none">
+                <div class="hof-label">Langste Duur</div>
+                {t3_time}
+            </div>
+        </div>
+        """
+    html += "</div>"
+    return html
+
 def generate_detail_table(df, uid):
     if df.empty: return "<p style='text-align:center;color:#999'>Geen activiteiten.</p>"
     opts = "".join([f'<option value="{s}">{s}</option>' for s in sorted(df['Activiteitstype'].unique())])
@@ -145,7 +219,7 @@ def genereer_manifest():
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V12 (Clean Garage & Smart Graph)...")
+    print("🚀 Start V13 (Top 3 Records overal)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -182,37 +256,26 @@ def genereer_dashboard():
         {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
         {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html((sc['t']-sp['t'])/3600, 0, "u"))}</div>"""
         
-        # GRAFIEK LOGICA
         dfc = dfy.sort_values('DagVanJaar'); dfc['C'] = dfc['Afstand_km'].cumsum()
-        
-        # Voor huidige jaar: Splits in Totaal en Buiten (Zonder virtueel)
         df_real = dfy[dfy['Activiteitstype'] != 'Virtuele fietsrit'].sort_values('DagVanJaar')
         df_real['C'] = df_real['Afstand_km'].cumsum()
-
-        # Vorig jaar: Stop op YTD
         dfpc = df[df['Jaar'] == yr-1].sort_values('DagVanJaar')
         if cur: dfpc = dfpc[dfpc['DagVanJaar'] <= ytd]
         dfpc['C'] = dfpc['Afstand_km'].cumsum()
         
         fig = px.line(title=f"Koersverloop {yr}")
-        
-        # Totaal Lijn (Blauw)
         fig.add_scatter(x=dfc['DagVanJaar'], y=dfc['C'], name=f"Totaal {yr}", line_color=COLORS['chart_main'], line_width=3)
-        
-        # Buiten Lijn (Cyaan - Alleen als er verschil is)
         if len(df_real) > 0 and sc['km'] != df_real['Afstand_km'].sum():
              fig.add_scatter(x=df_real['DagVanJaar'], y=df_real['C'], name=f"Buiten (Real)", line_color=COLORS['chart_sub'], line_dash='dot', line_width=2)
-
-        # Vorig Jaar (Grijs)
-        if not dfpc.empty: 
-            fig.add_scatter(x=dfpc['DagVanJaar'], y=dfpc['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
-            
+        if not dfpc.empty: fig.add_scatter(x=dfpc['DagVanJaar'], y=dfpc['C'], name=f"{yr-1} (YTD)", line_color=COLORS['chart_sec'], line_dash='dot')
         fig.update_layout(template='plotly_white', margin=dict(t=30,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
         
+        # TOP 3 PER JAAR
+        top3_html = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(dfy)}'
         tbl = generate_detail_table(dfy, str(yr))
 
         nav += f'<button class="nav-btn {"active" if cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
-        sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>{tbl}</div>'
+        sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(dfy, dfp)}<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>{top3_html}{tbl}</div>'
 
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
@@ -220,11 +283,24 @@ def genereer_dashboard():
     
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
+    
+    # HOF Tab (Global Records)
+    nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
+    sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
 
-    html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="1768922516256~2.jpg"><title>Sport Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>:root{{--primary:{COLORS['primary']};--gold:{COLORS['gold']};--bg:{COLORS['bg']};--card:{COLORS['card']};--text:{COLORS['text']}}}body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:80px;-webkit-tap-highlight-color:transparent}}.container{{max-width:1000px;margin:0 auto}}h1{{margin:0;font-size:24px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px}}h1::after{{content:'';display:block;width:40px;height:3px;background:var(--gold);border-radius:2px}}.header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}.lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;transition:0.2s}}.nav{{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px;scrollbar-width:none}}.nav::-webkit-scrollbar{{display:none}}.nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:600;color:#64748b;transition:0.2s}}.nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}.kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:25px}}.sport-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:15px;margin-bottom:25px}}.kpi-card,.sport-card,.chart-box,.detail-section{{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,0.03);border:1px solid #f1f5f9}}.sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}.sport-icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}}.stat-main{{display:flex;margin-bottom:12px}}.stat-col{{flex:1}}.stat-divider{{width:1px;background:#e2e8f0;margin:0 12px}}.label{{font-size:10px;text-transform:uppercase;color:#94a3b8;font-weight:700}}.val{{font-size:18px;font-weight:700;color:var(--primary)}}.sub{{font-size:11px;margin-top:2px}}.sport-details{{background:#f8fafc;padding:10px;border-radius:8px;font-size:12px}}.stat-row{{display:flex;justify-content:space-between;margin-bottom:4px;color:#64748b}}.stat-row strong{{color:var(--text)}}table{{width:100%;border-collapse:collapse;font-size:13px}}th{{text-align:left;color:#94a3b8;font-size:10px;text-transform:uppercase;padding:10px}}td{{padding:10px;border-bottom:1px solid #f1f5f9}}.num{{text-align:right;font-weight:600}}.hr-blur{{filter:blur(4px);background:#e2e8f0;border-radius:4px;color:transparent;transition:0.3s}}.section-title{{font-size:18px;font-weight:700;margin-bottom:15px;color:var(--primary)}}.section-subtitle{{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:25px 0 10px 0}}</style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
+    html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="1768922516256~2.jpg"><title>Sport Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>:root{{--primary:{COLORS['primary']};--gold:{COLORS['gold']};--bg:{COLORS['bg']};--card:{COLORS['card']};--text:{COLORS['text']}}}body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:80px;-webkit-tap-highlight-color:transparent}}.container{{max-width:1000px;margin:0 auto}}h1{{margin:0;font-size:24px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:10px}}h1::after{{content:'';display:block;width:40px;height:3px;background:var(--gold);border-radius:2px}}.header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}.lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;transition:0.2s}}.nav{{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px;scrollbar-width:none}}.nav::-webkit-scrollbar{{display:none}}.nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:600;color:#64748b;transition:0.2s}}.nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}.kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:25px}}.sport-grid,.hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-bottom:25px}}.kpi-card,.sport-card,.chart-box,.detail-section,.hof-card{{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,0.03);border:1px solid #f1f5f9}}.sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px}}.sport-icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}}.stat-main{{display:flex;margin-bottom:12px}}.stat-col{{flex:1}}.stat-divider{{width:1px;background:#e2e8f0;margin:0 12px}}.label{{font-size:10px;text-transform:uppercase;color:#94a3b8;font-weight:700}}.val{{font-size:18px;font-weight:700;color:var(--primary)}}.sub{{font-size:11px;margin-top:2px}}.sport-details{{background:#f8fafc;padding:10px;border-radius:8px;font-size:12px}}.stat-row{{display:flex;justify-content:space-between;margin-bottom:4px;color:#64748b}}.stat-row strong{{color:var(--text)}}table{{width:100%;border-collapse:collapse;font-size:13px}}th{{text-align:left;color:#94a3b8;font-size:10px;text-transform:uppercase;padding:10px}}td{{padding:10px;border-bottom:1px solid #f1f5f9}}.num{{text-align:right;font-weight:600}}.hr-blur{{filter:blur(4px);background:#e2e8f0;border-radius:4px;color:transparent;transition:0.3s}}.section-title{{font-size:18px;font-weight:700;margin-bottom:15px;color:var(--primary)}}.section-subtitle{{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:25px 0 10px 0}}
+        .hof-card {{ display:flex; flex-direction:column; gap:12px; }}
+        .hof-section {{ border-bottom:1px solid #f1f5f9; padding-bottom:8px; }}
+        .hof-label {{ font-size:10px; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:6px; }}
+        .top3-list {{ display:flex; flex-direction:column; gap:6px; }}
+        .top3-item {{ display:flex; justify-content:space-between; align-items:center; font-size:13px; }}
+        .medal {{ font-size:14px; margin-right:6px; }}
+        .top3-val {{ font-weight:700; color:var(--text); }}
+        .top3-date {{ font-size:11px; color:#94a3b8; }}
+        </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div><div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V12) gegenereerd: Clean Garage & Smart Graph.")
+    print("✅ Dashboard (V13) gegenereerd: Top 3 & Jaar Records.")
 
 if __name__ == "__main__":
     genereer_dashboard()
