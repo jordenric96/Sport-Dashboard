@@ -19,10 +19,10 @@ COLORS = {
     'card': '#ffffff', 
     'text': '#1e293b', 
     'text_light': '#64748b',
-    'zwift': '#F66B0E',   # Zwift Oranje
-    'bike_out': '#0096FF',# Buiten Blauw
-    'run': '#F59E0B',     # Hardloop Goud
-    'ref': '#94a3b8'      # Referentie Grijs
+    'zwift': '#F66B0E',   
+    'bike_out': '#0096FF',
+    'run': '#F59E0B',     
+    'ref': '#94a3b8'      
 }
 
 SPORT_CONFIG = {
@@ -64,19 +64,40 @@ def robust_date_parser(date_series):
         dates = pd.to_datetime(ds, format='%d %b %Y, %H:%M:%S', errors='coerce')
     return dates
 
+# --- LOGICA: PRORACER FIX ---
+def apply_proracer_logic(df):
+    """
+    Zoekt de eerste datum dat 'Merida' gebruikt is.
+    Alle fietsritten DAARVOOR zonder naam krijgen 'Proracer'.
+    """
+    # 1. Zorg dat we datum hebben
+    df['Datum'] = robust_date_parser(df['Datum'])
+    
+    # 2. Zoek eerste Merida rit
+    merida_rides = df[df['Uitrusting voor activiteit'].str.contains('Merida', case=False, na=False)]
+    
+    if not merida_rides.empty:
+        first_merida_date = merida_rides['Datum'].min()
+        print(f"🚴 Eerste Merida rit gevonden op: {first_merida_date}")
+        
+        # 3. Vul Proracer in
+        # Condities: Datum < Merida Start EN Type is Fiets EN Uitrusting is leeg
+        mask = (
+            (df['Datum'] < first_merida_date) & 
+            (df['Activiteitstype'].str.contains('Fiets|Ride|Gravel', case=False, na=False)) &
+            (df['Uitrusting voor activiteit'].isna() | (df['Uitrusting voor activiteit'] == '') | (df['Uitrusting voor activiteit'] == 'nan'))
+        )
+        count = mask.sum()
+        if count > 0:
+            df.loc[mask, 'Uitrusting voor activiteit'] = 'Proracer'
+            print(f"🔧 {count} oude ritten toegewezen aan 'Proracer'.")
+    
+    return df
+
 # --- HTML GENERATOREN ---
 
 def generate_kpi(title, val, icon="", diff=""):
-    return f"""
-    <div class="kpi-card">
-        <div class="kpi-icon-box">{icon}</div>
-        <div class="kpi-content">
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value">{val}</div>
-            <div class="kpi-sub">{diff}</div>
-        </div>
-    </div>
-    """
+    return f"""<div class="kpi-card"><div class="kpi-icon-box">{icon}</div><div class="kpi-content"><div class="kpi-title">{title}</div><div class="kpi-value">{val}</div><div class="kpi-sub">{diff}</div></div></div>"""
 
 def generate_gold_banner(df):
     items = []
@@ -99,7 +120,15 @@ def generate_gold_banner(df):
             items.append(f"⚡ Snelste: <strong>{int(pace//60)}:{int(pace%60):02d} /km</strong>")
             
     items_html = "".join([f'<div class="gold-item">{i}</div>' for i in items])
-    return f"""<div class="gold-banner"><div class="gold-icon">🏆</div><div class="gold-scroller">{items_html}</div></div>"""
+    
+    # De banner is nu een button met onclick
+    return f"""
+    <div class="gold-banner" onclick="toggleHOF()">
+        <div class="gold-icon">🏆</div>
+        <div class="gold-scroller">{items_html}</div>
+        <div style="margin-left:auto; font-size:12px">▼</div>
+    </div>
+    """
 
 def generate_sport_cards(df_cur, df_prev):
     html = '<div class="sport-grid">'
@@ -204,36 +233,26 @@ def genereer_manifest():
 
 # --- CHART GENERATORS ---
 def create_cycling_chart(df_yr, df_prev, year):
-    # Data voorbereiden
     df_yr = df_yr.sort_values('DagVanJaar')
     df_prev = df_prev.sort_values('DagVanJaar')
     
-    # 1. Zwift 2026
     df_zwift = df_yr[df_yr['Activiteitstype'] == 'Virtuele fietsrit'].copy()
     df_zwift['C'] = df_zwift['Afstand_km'].cumsum()
     
-    # 2. Buiten 2026 (Alles wat fiets is behalve virtueel)
     df_out = df_yr[df_yr['Activiteitstype'].str.contains('Fiets') & (df_yr['Activiteitstype'] != 'Virtuele fietsrit')].copy()
     df_out['C'] = df_out['Afstand_km'].cumsum()
     
-    # 3. Totaal 2025 (Referentie) - Alle fiets
     df_ref = df_prev[df_prev['Activiteitstype'].str.contains('Fiets')].copy()
     df_ref['C'] = df_ref['Afstand_km'].cumsum()
     
-    # Check of er uberhaupt fietsdata is
     if df_zwift.empty and df_out.empty and df_ref.empty: return ""
 
     fig = px.line(title=f"🚴 Wieler-Koers {year}")
     
-    # Lijnen toevoegen
-    if not df_out.empty:
-        fig.add_scatter(x=df_out['DagVanJaar'], y=df_out['C'], name=f"Buiten {year}", line_color=COLORS['bike_out'], line_width=3)
-    
-    if not df_zwift.empty:
-        fig.add_scatter(x=df_zwift['DagVanJaar'], y=df_zwift['C'], name=f"Zwift {year}", line_color=COLORS['zwift'], line_width=3)
-        
-    if not df_ref.empty:
-        fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"Totaal {year-1}", line_color=COLORS['ref'], line_dash='dot')
+    # HIER GEBRUIKEN WE INT(YEAR) OM ,0 TE VOORKOMEN
+    if not df_out.empty: fig.add_scatter(x=df_out['DagVanJaar'], y=df_out['C'], name=f"Buiten {int(year)}", line_color=COLORS['bike_out'], line_width=3)
+    if not df_zwift.empty: fig.add_scatter(x=df_zwift['DagVanJaar'], y=df_zwift['C'], name=f"Zwift {int(year)}", line_color=COLORS['zwift'], line_width=3)
+    if not df_ref.empty: fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"Totaal {int(year-1)}", line_color=COLORS['ref'], line_dash='dot')
 
     fig.update_layout(template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, 
                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
@@ -244,11 +263,9 @@ def create_running_chart(df_yr, df_prev, year):
     df_yr = df_yr.sort_values('DagVanJaar')
     df_prev = df_prev.sort_values('DagVanJaar')
     
-    # 1. Loop 2026
     df_run = df_yr[df_yr['Activiteitstype'] == 'Hardloopsessie'].copy()
     df_run['C'] = df_run['Afstand_km'].cumsum()
     
-    # 2. Loop 2025
     df_ref = df_prev[df_prev['Activiteitstype'] == 'Hardloopsessie'].copy()
     df_ref['C'] = df_ref['Afstand_km'].cumsum()
     
@@ -256,11 +273,9 @@ def create_running_chart(df_yr, df_prev, year):
 
     fig = px.line(title=f"🏃 Hardloop-Koers {year}")
     
-    if not df_run.empty:
-        fig.add_scatter(x=df_run['DagVanJaar'], y=df_run['C'], name=f"Hardlopen {year}", line_color=COLORS['run'], line_width=3)
-        
-    if not df_ref.empty:
-        fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"Hardlopen {year-1}", line_color=COLORS['ref'], line_dash='dot')
+    # HIER GEBRUIKEN WE INT(YEAR) OM ,0 TE VOORKOMEN
+    if not df_run.empty: fig.add_scatter(x=df_run['DagVanJaar'], y=df_run['C'], name=f"Hardlopen {int(year)}", line_color=COLORS['run'], line_width=3)
+    if not df_ref.empty: fig.add_scatter(x=df_ref['DagVanJaar'], y=df_ref['C'], name=f"Hardlopen {int(year-1)}", line_color=COLORS['ref'], line_dash='dot')
 
     fig.update_layout(template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, 
                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
@@ -269,7 +284,7 @@ def create_running_chart(df_yr, df_prev, year):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V18.0 (Dual Charts)...")
+    print("🚀 Start V19.0 (Proracer Fix & Clickable Banner)...")
     try: df = pd.read_csv('activities.csv')
     except: return print("❌ Geen activities.csv gevonden!")
 
@@ -285,6 +300,10 @@ def genereer_dashboard():
 
     df.loc[df['Activiteitstype'].str.contains('Training|Workout|Fitness', case=False, na=False), 'Activiteitstype'] = 'Padel'
     df.loc[df['Activiteitstype'].str.contains('Zwemmen', case=False, na=False), 'Afstand_km'] /= 1000
+    
+    # 1. APPLY PRORACER FIX
+    df = apply_proracer_logic(df)
+
     df['Datum'] = robust_date_parser(df['Datum'])
     df['Jaar'] = df['Datum'].dt.year
     df['DagVanJaar'] = df['Datum'].dt.dayofyear
@@ -296,12 +315,14 @@ def genereer_dashboard():
     years = sorted(df['Jaar'].dropna().unique(), reverse=True)
     gold_banner = generate_gold_banner(df)
     
+    # We genereren ook de globale Hall of Fame alvast, om te tonen als de knop klikt
+    global_hof = generate_hall_of_fame(df)
+    
     for yr in years:
         is_cur = (yr == datetime.now().year)
         df_yr = df[df['Jaar'] == yr]
         df_prev_yr = df[df['Jaar'] == yr-1]
         
-        # Voor KPI's vergelijken we met YTD
         df_prev_comp = df_prev_yr[df_prev_yr['DagVanJaar'] <= today_doy] if is_cur else df_prev_yr
         
         sc = {'n': len(df_yr), 'km': df_yr['Afstand_km'].sum(), 'h': df_yr['Hoogte_m'].sum(), 't': df_yr['Beweegtijd_sec'].sum()}
@@ -312,21 +333,17 @@ def genereer_dashboard():
         {generate_kpi("Hoogtemeters", f"{sc['h']:,.0f} m", "⛰️", format_diff_html(sc['h'], sp['h'], "m"))}
         {generate_kpi("Tijd", format_time(sc['t']), "⏱️", format_diff_html((sc['t']-sp['t'])/3600, 0, "u"))}</div>"""
         
-        # --- TWEE APARTE GRAFIEKEN ---
-        # Voor de grafieken vergelijken we met de VOLLEDIGE data van vorig jaar YTD (of heel jaar als het voorbij is)
-        # Maar voor de visuele chart is het vaak leuker om de lijn van vorig jaar te zien stoppen op YTD als het huidige jaar bezig is
         df_prev_chart = df_prev_yr[df_prev_yr['DagVanJaar'] <= today_doy] if is_cur else df_prev_yr
-        
         chart_fiets = create_cycling_chart(df_yr, df_prev_chart, yr)
         chart_loop = create_running_chart(df_yr, df_prev_chart, yr)
         
-        top3 = f'<h3 class="section-subtitle">Top Prestaties {yr}</h3>{generate_hall_of_fame(df_yr)}'
-        tbl = generate_detail_table(df_yr, str(yr))
+        top3 = f'<h3 class="section-subtitle">Top Prestaties {int(yr)}</h3>{generate_hall_of_fame(df_yr)}'
+        tbl = generate_detail_table(df_yr, str(int(yr)))
 
-        nav += f'<button class="nav-btn {"active" if is_cur else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
-        sects += f'<div id="v-{yr}" class="tab-content" style="display:{"block" if is_cur else "none"}"><h2 class="section-title">Overzicht {yr}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}{chart_fiets}{chart_loop}{top3}{tbl}</div>'
+        # INT(YEAR) GEBRUIKEN IN NAVIGATIE
+        nav += f'<button class="nav-btn {"active" if is_cur else ""}" onclick="openTab(event, \'v-{int(yr)}\')">{int(yr)}</button>'
+        sects += f'<div id="v-{int(yr)}" class="tab-content" style="display:{"block" if is_cur else "none"}"><h2 class="section-title">Overzicht {int(yr)}</h2>{kpis}<h3 class="section-subtitle">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}{chart_fiets}{chart_loop}{top3}{tbl}</div>'
 
-    # Totaal en Garage
     tbl_tot = generate_detail_table(df, "Tot")
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Totaal</button>'
     sects += f"""<div id="v-Tot" class="tab-content" style="display:none"><h2 class="section-title">Carrière</h2><div class="kpi-grid">
@@ -338,8 +355,8 @@ def genereer_dashboard():
     nav += '<button class="nav-btn" onclick="openTab(event, \'v-Gar\')">Garage</button>'
     sects += f'<div id="v-Gar" class="tab-content" style="display:none"><h2 class="section-title">De Garage</h2>{generate_gear_section(df)}</div>'
     
-    nav += '<button class="nav-btn" onclick="openTab(event, \'v-HOF\')">Records</button>'
-    sects += f'<div id="v-HOF" class="tab-content" style="display:none"><h2 class="section-title">All-Time Eregalerij</h2>{generate_hall_of_fame(df)}</div>'
+    # GLOBAL HOF (VERBORGEN, WORDT GETOOND BIJ KLIK OP BANNER)
+    sects += f'<div id="v-HOF-overlay" style="display:none; margin-top:20px; border-top:2px dashed #e2e8f0; padding-top:20px;"><h2 class="section-title">All-Time Eregalerij</h2>{global_hof}</div>'
 
     html = f"""<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="1768922516256~2.jpg"><title>Sport Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
     :root{{--primary:{COLORS['primary']};--gold:{COLORS['gold']};--gold-bg:{COLORS['gold_bg']};--bg:{COLORS['bg']};--card:{COLORS['card']};--text:{COLORS['text']}}}
@@ -349,7 +366,8 @@ def genereer_dashboard():
     h1::after{{content:'';display:block;width:40px;height:3px;background:var(--gold);border-radius:2px}}
     .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}}
     .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;transition:0.2s}}
-    .gold-banner {{ background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bg) 100%); color:white; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px; box-shadow:0 4px 6px -1px rgba(212, 175, 55, 0.3); }}
+    .gold-banner {{ cursor:pointer; background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bg) 100%); color:white; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px; box-shadow:0 4px 6px -1px rgba(212, 175, 55, 0.3); transition: transform 0.1s; }}
+    .gold-banner:active {{ transform: scale(0.98); }}
     .gold-icon {{ font-size:24px; }}
     .gold-scroller {{ display:flex; gap:15px; overflow-x:auto; white-space:nowrap; scrollbar-width:none; }}
     .gold-scroller::-webkit-scrollbar {{ display:none; }}
@@ -387,10 +405,25 @@ def genereer_dashboard():
     .medal {{ font-size:14px; margin-right:6px; }}
     .top3-val {{ font-weight:700; color:var(--text); }}
     .top3-date {{ font-size:11px; color:#94a3b8; }}
-    </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>{gold_banner}<div class="nav">{nav}</div>{sects}</div><script>function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active')}}function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
+    </style></head><body><div class="container"><div class="header"><h1>Sport Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>{gold_banner}<div id="hof-container">{global_hof}</div><div class="nav">{nav}</div>{sects}</div><script>
+    // VERBERG HOF BIJ START
+    document.getElementById('hof-container').style.display = 'none';
+    
+    function toggleHOF() {{
+        var x = document.getElementById('hof-container');
+        if (x.style.display === 'none') {{ x.style.display = 'grid'; }} else {{ x.style.display = 'none'; }}
+    }}
+    function openTab(e,n){{
+        document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');
+        document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+        document.getElementById(n).style.display='block';
+        e.currentTarget.classList.add('active');
+        document.getElementById('hof-container').style.display = 'none'; // Sluit HOF als je van tab wisselt
+    }}
+    function filterTable(uid){{var v=document.getElementById('sf-'+uid).value;document.querySelectorAll('#dt-'+uid+' tbody tr').forEach(tr=>tr.style.display=(v==='ALL'||tr.dataset.sport===v)?'':'none')}}function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>{{e.style.filter='none';e.style.color='inherit';e.style.background='transparent'}});document.querySelector('.lock-btn').style.display='none'}}}}</script></body></html>"""
     
     with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-    print("✅ Dashboard (V18.0) gegenereerd.")
+    print("✅ Dashboard (V19.0) gegenereerd: Proracer & Clickable Banner.")
 
 if __name__ == "__main__":
     genereer_dashboard()
