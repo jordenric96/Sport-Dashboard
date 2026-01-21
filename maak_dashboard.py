@@ -53,8 +53,10 @@ def format_time(seconds):
     return f'{h}u {m:02d}m'
 
 def format_diff_html(cur, prev, unit=""):
-    if pd.isna(prev) or prev == 0: return '<span style="color:#ccc">-</span>'
-    diff = cur - prev
+    # Toon verschil zodra er 'data' is voor 'cur' (dus != 0) of als 'prev' bestaat
+    if pd.isna(prev) and cur == 0: return '<span style="color:#ccc">-</span>'
+    
+    diff = cur - (prev if pd.notna(prev) else 0)
     color = '#10b981' if diff >= 0 else '#ef4444'
     arrow = "▲" if diff >= 0 else "▼"
     return f'<span style="color:{color}; font-weight:700; font-size:0.9em;">{arrow} {abs(diff):.1f} {unit}</span>'
@@ -151,17 +153,31 @@ def generate_sport_cards(df_yr, df_prev_comp):
         if df_s.empty: continue
         
         icon, color = get_sport_style(cat)
-        dist = df_s['Afstand_km'].sum(); dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
+        
+        # Huidig
+        n_sessies = len(df_s)
+        dist = df_s['Afstand_km'].sum()
         tijd = df_s['Beweegtijd_sec'].sum()
         hr = df_s['Hartslag'].mean()
         watt = df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
         
+        # Vorig jaar
+        n_prev = len(df_p)
+        dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
+        tijd_p = df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
+        
+        # Snelheid
         spd_val = "-"
         if cat == 'Hardlopen' and dist > 0: spd_val = f"{int((tijd/dist)//60)}:{int((tijd/dist)%60):02d} /km"
         elif tijd > 0 and cat != 'Padel': spd_val = f"{(dist/(tijd/3600)):.1f} km/u"
 
-        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{len(df_s)}</strong> {format_diff_html(len(df_s), len(df_p))}</div></div>
-                   <div class="stat-row"><span>Tijd</span> <strong>{format_time(tijd)}</strong></div>"""
+        # HTML Bouwen
+        # Sessies vergelijking (altijd tonen als n_sessies > 0)
+        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div>"""
+        
+        # Tijd vergelijking (in uren)
+        tijd_diff_u = (tijd - tijd_p) / 3600
+        rows += f"""<div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
         
         if cat != 'Padel':
             rows += f"""<div class="stat-row"><span>Afstand</span> <div class="val-group"><strong>{dist:,.0f} km</strong> {format_diff_html(dist, dist_p)}</div></div>
@@ -185,8 +201,9 @@ def generate_hall_of_fame(df):
         icon, color = get_sport_style(cat)
         
         def top3(col, unit, is_pace=False):
+            d_sorted = df_s.sort_values(col, ascending=False).head(3)
             res = ""
-            for i, (_, r) in enumerate(df_s.sort_values(col, ascending=False).head(3).iterrows()):
+            for i, (_, r) in enumerate(d_sorted.iterrows()):
                 v = r[col]
                 val = f"{v:.1f} {unit}"
                 if is_pace: val = f"{int((3600/v)//60)}:{int((3600/v)%60):02d}/km"
@@ -239,7 +256,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V46.0 (Wattage, Namen & Records)...")
+    print("🚀 Start V47.0 (Tijd Vergelijking & >=1 Sessie Fix)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -314,7 +331,6 @@ def genereer_dashboard():
         .log-table{{width:100%;border-collapse:collapse;font-size:12px}} .log-table th{{text-align:left;color:var(--label);padding:8px}} .log-table td{{padding:8px;border-top:1px solid #f1f5f9}}
         </style></head><body><div class="container">
         <div class="header"><h1 style="font-size:22px;margin:0">Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
-        <div class="gold-banner" onclick="window.location.reload()">🏆 Eregalerij & Records</div>
         {stats_box}<div class="nav">{nav}</div>{sects}</div>
         <script>
         function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active');}}
@@ -322,7 +338,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V46.0) gegenereerd!")
+        print("✅ Dashboard (V47.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
