@@ -33,22 +33,34 @@ def parse_dutch_date(date_str):
     except: pass
     return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORISERING ---
+# --- CATEGORISERING (STRIKT OP KOLOM) ---
 def determine_category(row):
     atype = str(row['Activiteitstype']).lower().strip()
-    anaam = str(row['Naam']).lower().strip()
-    if 'virtu' in atype or 'zwift' in atype or 'zwift' in anaam: return 'Virtueel'
-    if any(x in atype for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler']): return 'Fiets'
+    
+    # Zwift (Virtuele rit)
+    if 'virtu' in atype or 'zwift' in atype: return 'Zwift'
+    
+    # Fietsen (Buiten)
+    if any(x in atype for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
+    
+    # Hardlopen
     if any(x in atype for x in ['hardloop', 'run', 'jog']): return 'Hardlopen'
-    if any(x in atype for x in ['training', 'workout', 'kracht', 'padel', 'fitness', 'gym']): return 'Padel'
+    
+    # Padel / Training
+    if any(x in atype for x in ['training', 'workout', 'kracht', 'padel', 'fitness', 'gym', 'weight']): return 'Padel'
+    
+    # Zwemmen
     if 'zwem' in atype or 'swim' in atype: return 'Zwemmen'
+    
+    # Wandelen
     if any(x in atype for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
+    
     return 'Overig'
 
 def get_sport_style(cat):
     styles = {
         'Fiets': {'icon': '🚴', 'color': COLORS['bike_out']},
-        'Virtueel': {'icon': '👾', 'color': COLORS['zwift']},
+        'Zwift': {'icon': '👾', 'color': COLORS['zwift']},
         'Hardlopen': {'icon': '🏃', 'color': COLORS['run']},
         'Wandelen': {'icon': '🚶', 'color': COLORS['walk']},
         'Padel': {'icon': '🎾', 'color': COLORS['padel']},
@@ -70,36 +82,103 @@ def format_diff_html(cur, prev, unit=""):
     arrow = "▲" if diff >= 0 else "▼"
     return f'<span style="color:{color}; font-weight:700; font-size:0.9em;">{arrow} {abs(diff):.1f} {unit}</span>'
 
-# --- STREAK ---
+# --- STREAK MET DATUMS ---
 def calculate_streaks(df):
     valid = df.dropna(subset=['Datum']).sort_values('Datum')
     if valid.empty: return {}
+    
+    # --- WEKEN ---
     valid['WeekStart'] = valid['Datum'].dt.to_period('W-MON').dt.start_time
-    wk_dates = sorted(valid['WeekStart'].unique())
-    if not wk_dates: return {}
+    weeks = sorted(valid['WeekStart'].unique())
     
     cur_wk = 0
-    now_wk = pd.Timestamp.now().to_period('W-MON').start_time
-    if (now_wk - wk_dates[-1]).days <= 7:
-        cur_wk = 1
-        for i in range(len(wk_dates)-2, -1, -1):
-            if (wk_dates[i+1] - wk_dates[i]).days == 7: cur_wk += 1
-            else: break
-            
-    max_wk, temp = 0, 1
-    if len(wk_dates) > 0:
-        max_wk = 1
-        for i in range(1, len(wk_dates)):
-            if (wk_dates[i] - wk_dates[i-1]).days == 7: temp += 1
-            else: max_wk = max(max_wk, temp); temp = 1
-        max_wk = max(max_wk, temp)
-    return {'cur_week': cur_wk, 'max_week': max_wk}
+    max_wk_val = 0
+    max_wk_range = "-"
+    
+    if weeks:
+        # Huidige
+        now_wk = pd.Timestamp.now().to_period('W-MON').start_time
+        if (now_wk - weeks[-1]).days <= 7:
+            cur_wk = 1
+            for i in range(len(weeks)-2, -1, -1):
+                if (weeks[i+1] - weeks[i]).days == 7: cur_wk += 1
+                else: break
+        
+        # Record met datums
+        temp_len = 1
+        temp_start = weeks[0]
+        
+        # Init record met eerste week
+        max_wk_val = 1
+        max_wk_range = f"({weeks[0].strftime('%d %b %y')})"
+
+        for i in range(1, len(weeks)):
+            if (weeks[i] - weeks[i-1]).days == 7:
+                temp_len += 1
+            else:
+                if temp_len > max_wk_val:
+                    max_wk_val = temp_len
+                    end_date = weeks[i-1] + timedelta(days=6)
+                    max_wk_range = f"({temp_start.strftime('%d %b %y')} - {end_date.strftime('%d %b %y')})"
+                
+                temp_len = 1
+                temp_start = weeks[i]
+        
+        # Check laatste reeks
+        if temp_len > max_wk_val:
+            max_wk_val = temp_len
+            end_date = weeks[-1] + timedelta(days=6)
+            max_wk_range = f"({temp_start.strftime('%d %b %y')} - {end_date.strftime('%d %b %y')})"
+
+    # --- DAGEN ---
+    days = sorted(valid['Datum'].dt.date.unique())
+    cur_day = 0
+    max_day_val = 0
+    max_day_range = "-"
+    
+    if days:
+        # Huidig
+        if (datetime.now().date() - days[-1]).days <= 1:
+            cur_day = 1
+            for i in range(len(days)-2, -1, -1):
+                if (days[i+1] - days[i]).days == 1: cur_day += 1
+                else: break
+        
+        # Record
+        temp_len = 1
+        temp_start = days[0]
+        max_day_val = 1
+        max_day_range = f"({days[0].strftime('%d %b')})"
+        
+        for i in range(1, len(days)):
+            if (days[i] - days[i-1]).days == 1:
+                temp_len += 1
+            else:
+                if temp_len > max_day_val:
+                    max_day_val = temp_len
+                    max_day_range = f"({temp_start.strftime('%d %b')} - {days[i-1].strftime('%d %b %y')})"
+                temp_len = 1
+                temp_start = days[i]
+                
+        if temp_len > max_day_val:
+            max_day_val = temp_len
+            max_day_range = f"({temp_start.strftime('%d %b')} - {days[-1].strftime('%d %b %y')})"
+
+    return {
+        'cur_week': cur_wk, 
+        'max_week': f"{max_wk_val} weken", 
+        'max_week_dates': max_wk_range,
+        'cur_day': cur_day,
+        'max_day': f"{max_day_val} dagen",
+        'max_day_dates': max_day_range
+    }
 
 # --- UI GENERATOREN ---
 def generate_stats_box(df, current_year):
     df_cur = df[df['Jaar'] == current_year]
+    
     b_km = df_cur[df_cur['Categorie'] == 'Fiets']['Afstand_km'].sum()
-    z_km = df_cur[df_cur['Categorie'] == 'Virtueel']['Afstand_km'].sum()
+    z_km = df_cur[df_cur['Categorie'] == 'Zwift']['Afstand_km'].sum()
     r_km = df_cur[df_cur['Categorie'] == 'Hardlopen']['Afstand_km'].sum()
     
     b_pct = min(100, (b_km / GOALS['bike_out']) * 100)
@@ -127,8 +206,13 @@ def generate_stats_box(df, current_year):
         </div>
         <div class="streaks-section">
             <h3 class="box-title">🔥 REEKSEN</h3>
-            <div class="streak-row"><span class="label">Huidige Reeks:</span><span class="val">{s.get('cur_week', 0)} weken</span></div>
-            <div class="streak-row"><span class="label">Langste Reeks:</span><span class="val">{s.get('max_week', 0)} weken</span></div>
+            <div class="streak-row"><span class="label">Huidig Wekelijks:</span><span class="val">{s['cur_week']} weken</span></div>
+            <div class="streak-row"><span class="label">Record Wekelijks:</span><span class="val">{s['max_week']}</span></div>
+            <div class="streak-sub">{s['max_week_dates']}</div>
+            <div style="height:10px"></div>
+            <div class="streak-row"><span class="label">Huidig Dagelijks:</span><span class="val">{s['cur_day']} dagen</span></div>
+            <div class="streak-row"><span class="label">Record Dagelijks:</span><span class="val">{s['max_day']}</span></div>
+            <div class="streak-sub">{s['max_day_dates']}</div>
         </div>
     </div>"""
 
@@ -168,13 +252,14 @@ def generate_sport_cards(df_yr, df_prev_comp):
 def generate_hall_of_fame(df):
     html = '<div class="hof-grid">'
     df_hof = df.dropna(subset=['Datum']).copy()
-    for cat in ['Fiets', 'Virtueel', 'Hardlopen']:
+    for cat in ['Fiets', 'Zwift', 'Hardlopen']:
         df_s = df_hof[df_hof['Categorie'] == cat].copy()
         if df_s.empty: continue
         style = get_sport_style(cat)
         def top3(col, unit, is_pace=False):
+            d_sorted = df_s.sort_values(col, ascending=False).head(3)
             res = ""
-            for i, (_, r) in enumerate(df_s.sort_values(col, ascending=False).head(3).iterrows()):
+            for i, (_, r) in enumerate(d_sorted.iterrows()):
                 v = r[col]
                 val = f"{v:.1f}{unit}" if not is_pace else f"{int((3600/v)//60)}:{int((3600/v)%60):02d}/km"
                 res += f'<div class="top3-item"><span>{"🥇🥈🥉"[i]} {val}</span><span class="date">{r["Datum"].strftime("%d-%m-%y")}</span></div>'
@@ -191,9 +276,14 @@ def create_monthly_charts(df_cur, df_prev, year):
         f = go.Figure()
         f.add_trace(go.Bar(x=months, y=p_m, name=f"{year-1}", marker_color=COLORS['ref_gray']))
         f.add_trace(go.Bar(x=months, y=c_m, name=f"{year}", marker_color=color))
-        f.update_layout(title=title, template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=250, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=True, legend=dict(orientation="h", y=1.1))
+        f.update_layout(title=title, template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=True, legend=dict(orientation="h", y=1.1))
         return f'<div class="chart-box full-width">{f.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
-    return f"""{make_chart('Fiets', '🚴 Fietsen Buiten (km)', COLORS['bike_out'])}<div style="height:15px"></div>{make_chart('Hardlopen', '🏃 Hardlopen (km)', COLORS['run'])}"""
+    
+    return f"""{make_chart('Fiets', '🚴 Fietsen Buiten (km)', COLORS['bike_out'])}
+               <div style="height:15px"></div>
+               {make_chart('Zwift', '👾 Zwift (km)', COLORS['zwift'])}
+               <div style="height:15px"></div>
+               {make_chart('Hardlopen', '🏃 Hardlopen (km)', COLORS['run'])}"""
 
 def generate_gear_section(df):
     dfg = df.dropna(subset=['Gear']).copy()
@@ -202,7 +292,7 @@ def generate_gear_section(df):
     stats = dfg.groupby('Gear').agg(Count=('Categorie','count'), Km=('Afstand_km','sum'), Type=('Categorie', lambda x: x.mode()[0])).reset_index().sort_values('Km', ascending=False)
     html = '<div class="kpi-grid">'
     for _, r in stats.iterrows():
-        icon = '🚲' if r['Type'] in ['Fiets', 'Virtueel'] else '👟'
+        icon = '🚲' if r['Type'] in ['Fiets', 'Zwift'] else '👟'
         html += f"""<div class="kpi-card" style="padding:15px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:20px;">{icon}</span><strong style="font-size:13px;">{r['Gear']}</strong></div><div style="font-size:18px;font-weight:700;color:{COLORS['primary']}">{r['Km']:,.0f} km</div><div style="font-size:11px;color:{COLORS['text_light']}">{r['Count']} act.</div></div>"""
     return html + "</div>"
 
@@ -211,7 +301,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V42.0 (Header & Lock Restore)...")
+    print("🚀 Start V44.0 (Zwift, Streaks & Lopen Fix)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -264,6 +354,7 @@ def genereer_dashboard():
         .goal-item{{margin-bottom:10px}}.goal-label{{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px}}
         .goal-bar{{background:#f1f5f9;height:6px;border-radius:3px;overflow:hidden}}.goal-bar div{{height:100%;border-radius:3px}}
         .streak-row{{display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px}}.streak-row .val{{font-weight:700;color:var(--primary)}}
+        .streak-sub{{font-size:10px;color:var(--label);text-align:right;font-style:italic}}
         .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:25px}}
         .kpi-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
         .sport-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-bottom:25px}}
@@ -291,7 +382,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V42.0) gegenereerd!")
+        print("✅ Dashboard (V44.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
