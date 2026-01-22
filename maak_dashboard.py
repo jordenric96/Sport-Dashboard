@@ -53,9 +53,7 @@ def format_time(seconds):
     return f'{h}u {m:02d}m'
 
 def format_diff_html(cur, prev, unit=""):
-    # Toon verschil zodra er 'data' is voor 'cur' (dus != 0) of als 'prev' bestaat
     if pd.isna(prev) and cur == 0: return '<span style="color:#ccc">-</span>'
-    
     diff = cur - (prev if pd.notna(prev) else 0)
     color = '#10b981' if diff >= 0 else '#ef4444'
     arrow = "▲" if diff >= 0 else "▼"
@@ -154,30 +152,18 @@ def generate_sport_cards(df_yr, df_prev_comp):
         
         icon, color = get_sport_style(cat)
         
-        # Huidig
-        n_sessies = len(df_s)
-        dist = df_s['Afstand_km'].sum()
-        tijd = df_s['Beweegtijd_sec'].sum()
+        n_sessies = len(df_s); n_prev = len(df_p)
+        dist = df_s['Afstand_km'].sum(); dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
+        tijd = df_s['Beweegtijd_sec'].sum(); tijd_p = df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
         hr = df_s['Hartslag'].mean()
         watt = df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
         
-        # Vorig jaar
-        n_prev = len(df_p)
-        dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
-        tijd_p = df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
-        
-        # Snelheid
         spd_val = "-"
         if cat == 'Hardlopen' and dist > 0: spd_val = f"{int((tijd/dist)//60)}:{int((tijd/dist)%60):02d} /km"
         elif tijd > 0 and cat != 'Padel': spd_val = f"{(dist/(tijd/3600)):.1f} km/u"
 
-        # HTML Bouwen
-        # Sessies vergelijking (altijd tonen als n_sessies > 0)
-        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div>"""
-        
-        # Tijd vergelijking (in uren)
-        tijd_diff_u = (tijd - tijd_p) / 3600
-        rows += f"""<div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
+        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div>
+                   <div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
         
         if cat != 'Padel':
             rows += f"""<div class="stat-row"><span>Afstand</span> <div class="val-group"><strong>{dist:,.0f} km</strong> {format_diff_html(dist, dist_p)}</div></div>
@@ -256,7 +242,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V47.0 (Tijd Vergelijking & >=1 Sessie Fix)...")
+    print("🚀 Start V47.0 (Total Time Comp & Fixes)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -287,8 +273,24 @@ def genereer_dashboard():
             df_prev = df[df['Jaar'] == yr-1]
             ytd = datetime.now().timetuple().tm_yday
             df_prev_comp = df_prev[df_prev['Day'] <= ytd] if yr == datetime.now().year else df_prev
+            
+            # KPI Sectie met TOTALE TIJD vergelijking
+            t_cur = df_yr['Beweegtijd_sec'].sum()
+            t_prev = df_prev_comp['Beweegtijd_sec'].sum()
+            
             nav += f'<button class="nav-btn {"active" if yr == datetime.now().year else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
-            sects += f"""<div id="v-{yr}" class="tab-content" style="display:{"block" if yr == datetime.now().year else "none"}"><h2 class="sec-title">Overzicht {yr}</h2><div class="kpi-grid">{generate_kpi("Sessies", len(df_yr), "🔥", format_diff_html(len(df_yr), len(df_prev_comp)))}{generate_kpi("Totaal Afstand", f"{df_yr['Afstand_km'].sum():,.0f} km", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"))}{generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️", "")}</div><h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}<h3 class="sec-sub">Maandelijkse Voortgang</h3>{create_monthly_charts(df_yr, df_prev, yr)}<h3 class="sec-sub">Records {yr}</h3>{generate_hall_of_fame(df_yr)}<h3 class="sec-sub">Logboek {yr}</h3>{generate_logbook(df_yr, yr)}</div>"""
+            sects += f"""<div id="v-{yr}" class="tab-content" style="display:{"block" if yr == datetime.now().year else "none"}">
+                <h2 class="sec-title">Overzicht {yr}</h2>
+                <div class="kpi-grid">
+                    {generate_kpi("Sessies", len(df_yr), "🔥", format_diff_html(len(df_yr), len(df_prev_comp)))}
+                    {generate_kpi("Totaal Afstand", f"{df_yr['Afstand_km'].sum():,.0f} km", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"))}
+                    {generate_kpi("Totaal Tijd", format_time(t_cur), "⏱️", format_diff_html(t_cur/3600, t_prev/3600, "u"))}
+                </div>
+                <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
+                <h3 class="sec-sub">Maandelijkse Voortgang</h3>{create_monthly_charts(df_yr, df_prev, yr)}
+                <h3 class="sec-sub">Records {yr}</h3>{generate_hall_of_fame(df_yr)}
+                <h3 class="sec-sub">Logboek {yr}</h3>{generate_logbook(df_yr, yr)}
+            </div>"""
             
         nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Carrière</button>'
         sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="sec-title">All-Time Records</h2>{generate_hall_of_fame(df)}<h2 class="sec-title" style="margin-top:30px">De Garage</h2>{generate_gear_section(df)}</div>'
