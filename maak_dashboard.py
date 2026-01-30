@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # --- CONFIGURATIE ---
 GOALS = {'bike_out': 3000, 'zwift': 3000, 'run': 350}
 COLORS = {
-    'primary': '#0f172a', 'gold': '#d4af37', 'bg': '#f8fafc',
+    'primary': '#0f172a', 'gold': '#d4af37', 'bg': '#f1f5f9',
     'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
     'zwift': '#ff6600', 'bike_out': '#0099ff', 'run': '#fbbf24', 
     'swim': '#3b82f6', 'padel': '#84cc16', 'walk': '#10b981', 
@@ -58,6 +58,74 @@ def format_diff_html(cur, prev, unit=""):
     color = '#10b981' if diff >= 0 else '#ef4444'
     arrow = "▲" if diff >= 0 else "▼"
     return f'<span style="color:{color}; font-weight:700; font-size:0.9em;">{arrow} {abs(diff):.1f} {unit}</span>'
+
+# --- 5-JAREN VERGELIJKING (YTD) ---
+def generate_ytd_history(df, current_year):
+    # Bepaal tot welke dag van het jaar we moeten kijken (YTD)
+    # Als we naar een historisch jaar kijken (bv 2023), kijken we naar het hele jaar (366)
+    # Als we naar het HUIDIGE jaar kijken (bv 2025), kijken we tot VANDAAG.
+    
+    is_current_active_year = (current_year == datetime.now().year)
+    day_limit = datetime.now().timetuple().tm_yday if is_current_active_year else 366
+    
+    html = f"""
+    <div class="chart-box full-width" style="margin-bottom:20px;">
+        <h3 style="margin-top:0; margin-bottom:15px; font-size:16px;">📅 Verloop t.o.v. Vorige Jaren (Dezelfde Periode)</h3>
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Jaar</th>
+                    <th>Afstand</th>
+                    <th>Tijd</th>
+                    <th>Sessies</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # We kijken naar dit jaar en de 5 jaren ervoor
+    max_km = 0
+    history_data = []
+    
+    for y in range(current_year, current_year - 6, -1):
+        df_y = df[df['Jaar'] == y]
+        # Filter YTD
+        df_y_ytd = df_y[df_y['Day'] <= day_limit]
+        
+        km = df_y_ytd['Afstand_km'].sum()
+        sec = df_y_ytd['Beweegtijd_sec'].sum()
+        count = len(df_y_ytd)
+        
+        if km > max_km: max_km = km
+        history_data.append((y, km, sec, count))
+    
+    for y, km, sec, count in history_data:
+        # Bar breedte berekenen
+        bar_w = (km / max_km * 100) if max_km > 0 else 0
+        is_curr = (y == current_year)
+        row_style = "font-weight:bold; background:#f8fafc;" if is_curr else ""
+        bar_color = COLORS['primary'] if is_curr else '#cbd5e1'
+        
+        hours = sec / 3600
+        
+        html += f"""
+        <tr style="{row_style}">
+            <td style="width:60px;">{y}</td>
+            <td>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="width:70px; text-align:right;">{km:,.0f} km</span>
+                    <div style="flex:1; background:#f1f5f9; height:8px; border-radius:4px; max-width:150px;">
+                        <div style="width:{bar_w}%; background:{bar_color}; height:100%; border-radius:4px;"></div>
+                    </div>
+                </div>
+            </td>
+            <td style="width:80px; text-align:right;">{hours:.1f} uur</td>
+            <td style="width:60px; text-align:right;">{count}</td>
+        </tr>
+        """
+        
+    html += "</tbody></table></div>"
+    return html
 
 # --- STREAK ---
 def calculate_streaks(df):
@@ -217,7 +285,7 @@ def create_monthly_charts(df_cur, df_prev, year):
         f.add_trace(go.Bar(x=months, y=c_m, name=f"{year}", marker_color=color))
         f.update_layout(title=title, template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=True, legend=dict(orientation="h", y=1.1))
         return f'<div class="chart-box full-width">{f.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
-    return f"""{make_chart('Fiets', '🚴 Fietsen Buiten (km)', COLORS['bike_out'])}<div style="height:15px"></div>{make_chart('Zwift', '👾 Zwift (km)', COLORS['zwift'])}<div style="height:15px"></div>{make_chart('Hardlopen', '🏃 Hardlopen (km)', COLORS['run'])}"""
+    return f"""<div class="chart-grid">{make_chart('Fiets', '🚴 Fietsen Buiten (km)', COLORS['bike_out'])}{make_chart('Zwift', '👾 Zwift (km)', COLORS['zwift'])}{make_chart('Hardlopen', '🏃 Hardlopen (km)', COLORS['run'])}</div>"""
 
 def generate_gear_section(df):
     dfg = df.dropna(subset=['Gear']).copy()
@@ -242,7 +310,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V47.0 (Total Time Comp & Fixes)...")
+    print("🚀 Start V49.0 (Wide Layout & 5-Year Blocks)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -286,6 +354,7 @@ def genereer_dashboard():
                     {generate_kpi("Totaal Afstand", f"{df_yr['Afstand_km'].sum():,.0f} km", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"))}
                     {generate_kpi("Totaal Tijd", format_time(t_cur), "⏱️", format_diff_html(t_cur/3600, t_prev/3600, "u"))}
                 </div>
+                {generate_ytd_history(df, yr)}
                 <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
                 <h3 class="sec-sub">Maandelijkse Voortgang</h3>{create_monthly_charts(df_yr, df_prev, yr)}
                 <h3 class="sec-sub">Records {yr}</h3>{generate_hall_of_fame(df_yr)}
@@ -297,8 +366,8 @@ def genereer_dashboard():
         
         html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sportoverzicht Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
         :root{{--primary:#0f172a;--bg:#f8fafc;--card:#ffffff;--text:#1e293b;--label:#94a3b8}}
-        body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:15px;padding-bottom:60px}}
-        .container{{max-width:800px;margin:0 auto}}
+        body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:60px}}
+        .container{{max-width:1200px;margin:0 auto}}
         .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}
         .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;cursor:pointer}}
         .hr-blur{{filter:blur(5px);transition:0.3s}}
@@ -307,32 +376,34 @@ def genereer_dashboard():
         .nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer}}
         .nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}
         .stats-box-container{{display:flex;gap:15px;margin-bottom:25px;flex-wrap:wrap}}
-        .goals-section, .streaks-section{{flex:1;background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0;min-width:280px}}
+        .goals-section, .streaks-section{{flex:1;background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0;min-width:300px}}
         .box-title{{font-size:11px;color:var(--label);text-transform:uppercase;margin-bottom:12px;letter-spacing:1px;font-weight:700}}
         .goal-item{{margin-bottom:10px}}.goal-label{{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px}}
         .goal-bar{{background:#f1f5f9;height:6px;border-radius:3px;overflow:hidden}}.goal-bar div{{height:100%;border-radius:3px}}
         .streak-row{{display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px}}.streak-row .val{{font-weight:700;color:var(--primary)}}
         .streak-sub{{font-size:10px;color:var(--label);text-align:right;font-style:italic}}
-        .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:25px}}
+        .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px;margin-bottom:25px}}
         .kpi-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
-        .sport-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-bottom:25px}}
+        .sport-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:15px;margin-bottom:25px}}
         .sport-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
         .sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:16px}}
         .icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}}
         .stat-row{{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:#64748b}}
         .stat-row strong{{color:var(--text)}} .val-group{{display:flex;gap:6px;align-items:center}}
-        .hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px}}
+        .hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin-bottom:20px}}
         .hof-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
         .hof-sec{{margin-bottom:12px}} .sec-lbl{{font-size:9px;color:var(--label);text-transform:uppercase;font-weight:700;margin-bottom:4px}}
         .top3-item{{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px}}
         .medal{{margin-right:5px}} .t3-val{{font-weight:600}} .t3-date{{color:var(--label);font-size:10px}}
         .sec-title{{font-size:20px;font-weight:700;margin-bottom:15px}}
         .sec-sub{{font-size:12px;color:var(--label);text-transform:uppercase;font-weight:700;margin:25px 0 10px 0;letter-spacing:1px}}
+        .chart-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:15px;}}
         .chart-box{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
         .full-width{{width:100%;box-sizing:border-box}}
         .log-table{{width:100%;border-collapse:collapse;font-size:12px}} .log-table th{{text-align:left;color:var(--label);padding:8px}} .log-table td{{padding:8px;border-top:1px solid #f1f5f9}}
+        .history-table{{width:100%; border-collapse:collapse; font-size:13px;}} .history-table th{{text-align:left; color:var(--label); padding:8px; border-bottom:1px solid #e2e8f0;}} .history-table td{{padding:8px; border-bottom:1px solid #f1f5f9;}}
         </style></head><body><div class="container">
-        <div class="header"><h1 style="font-size:22px;margin:0">Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
+        <div class="header"><h1 style="font-size:24px;margin:0">Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         {stats_box}<div class="nav">{nav}</div>{sects}</div>
         <script>
         function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active');}}
@@ -340,7 +411,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V47.0) gegenereerd!")
+        print("✅ Dashboard (V49.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
