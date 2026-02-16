@@ -16,7 +16,7 @@ COLORS = {
     'card': '#ffffff', 'text': '#1e293b', 'text_light': '#64748b',
     'zwift': '#ff6600', 'bike_out': '#0099ff', 'run': '#fbbf24', 
     'swim': '#3b82f6', 'padel': '#84cc16', 'walk': '#10b981', 
-    'default': '#64748b', 'ref_gray': '#cbd5e1'
+    'strength': '#e11d48', 'default': '#64748b', 'ref_gray': '#cbd5e1'
 }
 
 # --- DATUM FIX ---
@@ -30,21 +30,45 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE ---
+# --- CATEGORIE (NU MET KRACHT APART) ---
 def determine_category(row):
     t = str(row['Activiteitstype']).lower().strip(); n = str(row['Naam']).lower().strip()
+    
+    # 1. Zwift
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
+    
+    # 2. Fietsen
     if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
+    
+    # 3. Hardlopen
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
-    if any(x in t for x in ['train', 'work', 'fit', 'kracht', 'padel']): return 'Padel'
+    
+    # 4. KRACHT (Nieuw: Splitst kracht af van training)
+    if any(x in t for x in ['kracht', 'weight', 'gym']): return 'Kracht'
+    
+    # 5. Padel (Training blijft hier)
+    if any(x in t for x in ['train', 'work', 'fit', 'padel', 'tenn']): return 'Padel'
+    
+    # 6. Zwemmen
     if 'zwem' in t: return 'Zwemmen'
+    
+    # 7. Wandelen
     if any(x in t for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
+    
     return 'Overig'
 
 def get_sport_style(cat):
-    styles = {'Fiets':('🚴', COLORS['bike_out']), 'Zwift':('👾', COLORS['zwift']), 'Hardlopen':('🏃', COLORS['run']),
-              'Wandelen':('🚶', COLORS['walk']), 'Padel':('🎾', COLORS['padel']), 'Zwemmen':('🏊', COLORS['swim'])}
-    return styles.get(cat, ('🏅', COLORS['default']))
+    styles = {
+        'Fiets': {'icon': '🚴', 'color': COLORS['bike_out']},
+        'Zwift': {'icon': '👾', 'color': COLORS['zwift']},
+        'Hardlopen': {'icon': '🏃', 'color': COLORS['run']},
+        'Wandelen': {'icon': '🚶', 'color': COLORS['walk']},
+        'Padel': {'icon': '🎾', 'color': COLORS['padel']},
+        'Kracht': {'icon': '🏋️', 'color': COLORS['strength']},
+        'Zwemmen': {'icon': '🏊', 'color': COLORS['swim']},
+        'Overig': {'icon': '🏅', 'color': COLORS['default']}
+    }
+    return styles.get(cat, styles['Overig'])
 
 # --- HELPERS ---
 def format_time(seconds):
@@ -61,10 +85,6 @@ def format_diff_html(cur, prev, unit=""):
 
 # --- 5-JAREN VERGELIJKING (YTD) ---
 def generate_ytd_history(df, current_year):
-    # Bepaal tot welke dag van het jaar we moeten kijken (YTD)
-    # Als we naar een historisch jaar kijken (bv 2023), kijken we naar het hele jaar (366)
-    # Als we naar het HUIDIGE jaar kijken (bv 2025), kijken we tot VANDAAG.
-    
     is_current_active_year = (current_year == datetime.now().year)
     day_limit = datetime.now().timetuple().tm_yday if is_current_active_year else 366
     
@@ -72,60 +92,34 @@ def generate_ytd_history(df, current_year):
     <div class="chart-box full-width" style="margin-bottom:20px;">
         <h3 style="margin-top:0; margin-bottom:15px; font-size:16px;">📅 Verloop t.o.v. Vorige Jaren (Dezelfde Periode)</h3>
         <table class="history-table">
-            <thead>
-                <tr>
-                    <th>Jaar</th>
-                    <th>Afstand</th>
-                    <th>Tijd</th>
-                    <th>Sessies</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Jaar</th><th>Afstand</th><th>Tijd</th><th>Sessies</th></tr></thead>
             <tbody>
     """
     
-    # We kijken naar dit jaar en de 5 jaren ervoor
     max_km = 0
     history_data = []
-    
     for y in range(current_year, current_year - 6, -1):
         df_y = df[df['Jaar'] == y]
-        # Filter YTD
         df_y_ytd = df_y[df_y['Day'] <= day_limit]
-        
         km = df_y_ytd['Afstand_km'].sum()
         sec = df_y_ytd['Beweegtijd_sec'].sum()
         count = len(df_y_ytd)
-        
         if km > max_km: max_km = km
         history_data.append((y, km, sec, count))
     
     for y, km, sec, count in history_data:
-        # Bar breedte berekenen
         bar_w = (km / max_km * 100) if max_km > 0 else 0
         is_curr = (y == current_year)
         row_style = "font-weight:bold; background:#f8fafc;" if is_curr else ""
         bar_color = COLORS['primary'] if is_curr else '#cbd5e1'
-        
-        hours = sec / 3600
-        
         html += f"""
         <tr style="{row_style}">
             <td style="width:60px;">{y}</td>
-            <td>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="width:70px; text-align:right;">{km:,.0f} km</span>
-                    <div style="flex:1; background:#f1f5f9; height:8px; border-radius:4px; max-width:150px;">
-                        <div style="width:{bar_w}%; background:{bar_color}; height:100%; border-radius:4px;"></div>
-                    </div>
-                </div>
-            </td>
-            <td style="width:80px; text-align:right;">{hours:.1f} uur</td>
+            <td><div style="display:flex; align-items:center; gap:10px;"><span style="width:70px; text-align:right;">{km:,.0f} km</span><div style="flex:1; background:#f1f5f9; height:8px; border-radius:4px; max-width:150px;"><div style="width:{bar_w}%; background:{bar_color}; height:100%; border-radius:4px;"></div></div></div></td>
+            <td style="width:80px; text-align:right;">{sec/3600:.1f} uur</td>
             <td style="width:60px; text-align:right;">{count}</td>
-        </tr>
-        """
-        
-    html += "</tbody></table></div>"
-    return html
+        </tr>"""
+    return html + "</tbody></table></div>"
 
 # --- STREAK ---
 def calculate_streaks(df):
@@ -163,7 +157,6 @@ def calculate_streaks(df):
             for i in range(len(days)-2, -1, -1):
                 if (days[i+1]-days[i]).days == 1: cur_d+=1
                 else: break
-        
         temp, start = 1, days[0]
         max_d, max_d_dates = 1, f"({days[0].strftime('%d %b')})"
         for i in range(1, len(days)):
@@ -219,8 +212,7 @@ def generate_sport_cards(df_yr, df_prev_comp):
         if df_s.empty: continue
         
         icon, color = get_sport_style(cat)
-        
-        n_sessies = len(df_s); n_prev = len(df_p)
+        n_sessies, n_prev = len(df_s), len(df_p)
         dist = df_s['Afstand_km'].sum(); dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
         tijd = df_s['Beweegtijd_sec'].sum(); tijd_p = df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
         hr = df_s['Hartslag'].mean()
@@ -228,12 +220,12 @@ def generate_sport_cards(df_yr, df_prev_comp):
         
         spd_val = "-"
         if cat == 'Hardlopen' and dist > 0: spd_val = f"{int((tijd/dist)//60)}:{int((tijd/dist)%60):02d} /km"
-        elif tijd > 0 and cat != 'Padel': spd_val = f"{(dist/(tijd/3600)):.1f} km/u"
+        elif tijd > 0 and cat not in ['Padel', 'Kracht']: spd_val = f"{(dist/(tijd/3600)):.1f} km/u"
 
         rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div>
                    <div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
         
-        if cat != 'Padel':
+        if cat not in ['Padel', 'Kracht']:
             rows += f"""<div class="stat-row"><span>Afstand</span> <div class="val-group"><strong>{dist:,.0f} km</strong> {format_diff_html(dist, dist_p)}</div></div>
                         <div class="stat-row"><span>Snelheid</span> <strong>{spd_val}</strong></div>"""
         
@@ -253,7 +245,6 @@ def generate_hall_of_fame(df):
         df_s = df_hof[df_hof['Categorie'] == cat].copy()
         if df_s.empty: continue
         icon, color = get_sport_style(cat)
-        
         def top3(col, unit, is_pace=False):
             d_sorted = df_s.sort_values(col, ascending=False).head(3)
             res = ""
@@ -264,13 +255,11 @@ def generate_hall_of_fame(df):
                 elif unit == 'W': val = f"{v:.0f} W"
                 res += f'<div class="top3-item"><span>{"🥇🥈🥉"[i]} {val}</span><span class="date">{r["Datum"].strftime("%d-%m-%y")}</span></div>'
             return res
-        
         sections = f'<div class="hof-sec"><div class="sec-lbl">Langste Afstand</div>{top3("Afstand_km", "km")}</div>'
         if cat == 'Zwift' and 'Wattage' in df_s.columns:
             sections += f'<div class="hof-sec"><div class="sec-lbl">Hoogste Wattage (Gem)</div>{top3("Wattage", "W")}</div>'
         else:
             sections += f'<div class="hof-sec"><div class="sec-lbl">Snelste Gem.</div>{top3("Gem_Snelheid", "km/u", cat=="Hardlopen")}</div>'
-
         html += f"""<div class="hof-card"><div class="hof-header" style="color:{color}">{icon} {cat}</div>{sections}</div>"""
     return html + '</div>'
 
@@ -301,7 +290,7 @@ def generate_gear_section(df):
 def generate_logbook(df, yr):
     rows = ""
     for _, r in df.sort_values('Datum', ascending=False).iterrows():
-        km = f"{r['Afstand_km']:.1f}" if r['Categorie'] != 'Padel' and r['Afstand_km'] > 0 else "-"
+        km = f"{r['Afstand_km']:.1f}" if r['Categorie'] not in ['Padel', 'Kracht'] and r['Afstand_km'] > 0 else "-"
         rows += f"<tr><td>{r['Datum'].strftime('%d-%m')}</td><td>{get_sport_style(r['Categorie'])[0]}</td><td>{r['Naam']}</td><td align='right'>{km}</td></tr>"
     return f'<div class="chart-box full-width" style="margin-top:20px;max-height:400px;overflow-y:auto"><table class="log-table"><thead><tr><th>Datum</th><th>Type</th><th>Naam</th><th align="right">Km</th></tr></thead><tbody>{rows}</tbody></table></div>'
 
@@ -310,7 +299,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V49.0 (Wide Layout & 5-Year Blocks)...")
+    print("🚀 Start V50.0 (Split Strength & Padel)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -342,7 +331,6 @@ def genereer_dashboard():
             ytd = datetime.now().timetuple().tm_yday
             df_prev_comp = df_prev[df_prev['Day'] <= ytd] if yr == datetime.now().year else df_prev
             
-            # KPI Sectie met TOTALE TIJD vergelijking
             t_cur = df_yr['Beweegtijd_sec'].sum()
             t_prev = df_prev_comp['Beweegtijd_sec'].sum()
             
@@ -411,7 +399,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V49.0) gegenereerd!")
+        print("✅ Dashboard (V50.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
