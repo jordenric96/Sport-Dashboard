@@ -30,35 +30,36 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE (NU MET EXCLUSIEVE LOGICA) ---
+# --- CATEGORIE (NU OOK CHECK OP NAAM VOOR KRACHT) ---
 def determine_category(row):
-    # We kijken primair naar het Activiteitstype (zoals gevraagd)
     t = str(row['Activiteitstype']).lower().strip()
     n = str(row['Naam']).lower().strip()
     
-    # 1. ZWIFT
+    # 1. Zwift
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
     
-    # 2. FIETSEN
+    # 2. Fietsen
     if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
     
-    # 3. HARDLOPEN
+    # 3. Hardlopen
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
     
-    # 4. KRACHT (Absolute voorrang)
-    # Als 'kracht' erin staat, is het ALTIJD kracht, ongeacht of er ook 'training' staat.
-    if 'kracht' in t or 'weight' in t or 'gym' in t: 
+    # 4. KRACHT (Check Type EN Naam - Absolute voorrang)
+    # Als 'kracht', 'weight' of 'gym' in Type OF Naam staat -> Kracht
+    kracht_words = ['kracht', 'weight', 'gym', 'crossfit', 'dumbbell', 'barbell']
+    if any(x in t for x in kracht_words) or any(x in n for x in kracht_words): 
         return 'Kracht'
     
-    # 5. PADEL (De Veilige Check)
-    # Het is pas Padel/Training als het woord 'kracht' er NIET in zit.
-    # Dit voorkomt dat "Krachttraining" hier wordt opgepakt.
-    is_training = any(x in t for x in ['train', 'work', 'fit', 'padel', 'tenn'])
-    if is_training and 'kracht' not in t: 
+    # 5. PADEL (Alles wat Training is maar GEEN kracht)
+    # Dit vangt 'Training', 'Workout', 'Fitness', 'Padel', 'Tennis' af
+    training_words = ['train', 'work', 'fit', 'padel', 'tenn']
+    if any(x in t for x in training_words): 
         return 'Padel'
     
-    # 6. OVERIGE SPORTEN
+    # 6. Zwemmen
     if 'zwem' in t: return 'Zwemmen'
+    
+    # 7. Wandelen
     if any(x in t for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
     
     return 'Overig'
@@ -305,7 +306,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V52.0 (Double Filter Safety)...")
+    print("🚀 Start V53.0 (Smart Category Sort)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -384,7 +385,7 @@ def genereer_dashboard():
         .icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}}
         .stat-row{{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:#64748b}}
         .stat-row strong{{color:var(--text)}} .val-group{{display:flex;gap:6px;align-items:center}}
-        .hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin-bottom:20px}}
+        .hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px}}
         .hof-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
         .hof-sec{{margin-bottom:12px}} .sec-lbl{{font-size:9px;color:var(--label);text-transform:uppercase;font-weight:700;margin-bottom:4px}}
         .top3-item{{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px}}
@@ -405,7 +406,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V52.0) gegenereerd!")
+        print("✅ Dashboard (V53.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
