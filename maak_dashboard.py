@@ -30,9 +30,10 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE (NU MET KRACHT APART) ---
+# --- CATEGORIE (AANGESCHERPT) ---
 def determine_category(row):
-    t = str(row['Activiteitstype']).lower().strip(); n = str(row['Naam']).lower().strip()
+    t = str(row['Activiteitstype']).lower().strip()
+    n = str(row['Naam']).lower().strip()
     
     # 1. Zwift
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
@@ -43,11 +44,14 @@ def determine_category(row):
     # 3. Hardlopen
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
     
-    # 4. KRACHT (Nieuw: Splitst kracht af van training)
-    if any(x in t for x in ['kracht', 'weight', 'gym']): return 'Kracht'
+    # 4. KRACHT (Check dit EERST, want 'Krachttraining' bevat ook 'training')
+    # Als type 'krachttraining', 'kracht', 'weight' of 'gym' is -> Kracht
+    if 'kracht' in t or 'weight' in t or 'gym' in t: 
+        return 'Kracht'
     
-    # 5. Padel (Training blijft hier)
-    if any(x in t for x in ['train', 'work', 'fit', 'padel', 'tenn']): return 'Padel'
+    # 5. PADEL (Als het type 'training' is en GEEN kracht was -> Padel)
+    if 'train' in t or 'work' in t or 'fit' in t or 'padel' in t or 'tenn' in t: 
+        return 'Padel'
     
     # 6. Zwemmen
     if 'zwem' in t: return 'Zwemmen'
@@ -299,7 +303,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V50.0 (Split Strength & Padel)...")
+    print("🚀 Start V51.0 (Training=Padel, Kracht=Kracht)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -399,7 +403,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V50.0) gegenereerd!")
+        print("✅ Dashboard (V51.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
