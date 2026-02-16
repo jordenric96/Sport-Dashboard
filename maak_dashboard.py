@@ -30,37 +30,33 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE (NU OOK CHECK OP NAAM VOOR KRACHT) ---
+# --- CATEGORIE (ENKEL OP ACTIVITEITSTYPE) ---
 def determine_category(row):
+    # We kijken ALLEEN naar Activiteitstype
     t = str(row['Activiteitstype']).lower().strip()
-    n = str(row['Naam']).lower().strip()
     
-    # 1. Zwift
-    if 'virtu' in t or 'zwift' in n: return 'Zwift'
+    # 1. ZWIFT (Virtuele fietsrit)
+    if 'virtu' in t: return 'Zwift'
     
-    # 2. Fietsen
-    if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
+    # 2. KRACHT (Krachttraining)
+    if 'kracht' in t: return 'Kracht'
     
-    # 3. Hardlopen
-    if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
+    # 3. PADEL (Training / Workout / Fitness -> Padel)
+    # Omdat we eerst 'kracht' checken, zal 'krachttraining' hierboven al gepakt zijn.
+    # Dus alles wat nu nog 'training' heet, is Padel.
+    if 'train' in t or 'work' in t or 'fit' in t: return 'Padel'
     
-    # 4. KRACHT (Check Type EN Naam - Absolute voorrang)
-    # Als 'kracht', 'weight' of 'gym' in Type OF Naam staat -> Kracht
-    kracht_words = ['kracht', 'weight', 'gym', 'crossfit', 'dumbbell', 'barbell']
-    if any(x in t for x in kracht_words) or any(x in n for x in kracht_words): 
-        return 'Kracht'
+    # 4. FIETSEN (Fietsrit, E-bike, etc.)
+    if 'fiets' in t or 'wieler' in t or 'gravel' in t or 'mtb' in t or 'ride' in t: return 'Fiets'
     
-    # 5. PADEL (Alles wat Training is maar GEEN kracht)
-    # Dit vangt 'Training', 'Workout', 'Fitness', 'Padel', 'Tennis' af
-    training_words = ['train', 'work', 'fit', 'padel', 'tenn']
-    if any(x in t for x in training_words): 
-        return 'Padel'
+    # 5. HARDLOPEN (Hardloopsessie, Lopen)
+    if 'loop' in t or 'run' in t: return 'Hardlopen'
     
-    # 6. Zwemmen
+    # 6. WANDELEN
+    if 'wandel' in t or 'hike' in t: return 'Wandelen'
+    
+    # 7. ZWEMMEN
     if 'zwem' in t: return 'Zwemmen'
-    
-    # 7. Wandelen
-    if any(x in t for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
     
     return 'Overig'
 
@@ -306,7 +302,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V53.0 (Smart Category Sort)...")
+    print("🚀 Start V53.0 (Type-Only & Force Strength)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
