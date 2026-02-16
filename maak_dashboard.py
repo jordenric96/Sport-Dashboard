@@ -30,33 +30,35 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE (AANGESCHERPT) ---
+# --- CATEGORIE (NU MET EXCLUSIEVE LOGICA) ---
 def determine_category(row):
+    # We kijken primair naar het Activiteitstype (zoals gevraagd)
     t = str(row['Activiteitstype']).lower().strip()
     n = str(row['Naam']).lower().strip()
     
-    # 1. Zwift
+    # 1. ZWIFT
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
     
-    # 2. Fietsen
+    # 2. FIETSEN
     if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
     
-    # 3. Hardlopen
+    # 3. HARDLOPEN
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
     
-    # 4. KRACHT (Check dit EERST, want 'Krachttraining' bevat ook 'training')
-    # Als type 'krachttraining', 'kracht', 'weight' of 'gym' is -> Kracht
+    # 4. KRACHT (Absolute voorrang)
+    # Als 'kracht' erin staat, is het ALTIJD kracht, ongeacht of er ook 'training' staat.
     if 'kracht' in t or 'weight' in t or 'gym' in t: 
         return 'Kracht'
     
-    # 5. PADEL (Als het type 'training' is en GEEN kracht was -> Padel)
-    if 'train' in t or 'work' in t or 'fit' in t or 'padel' in t or 'tenn' in t: 
+    # 5. PADEL (De Veilige Check)
+    # Het is pas Padel/Training als het woord 'kracht' er NIET in zit.
+    # Dit voorkomt dat "Krachttraining" hier wordt opgepakt.
+    is_training = any(x in t for x in ['train', 'work', 'fit', 'padel', 'tenn'])
+    if is_training and 'kracht' not in t: 
         return 'Padel'
     
-    # 6. Zwemmen
+    # 6. OVERIGE SPORTEN
     if 'zwem' in t: return 'Zwemmen'
-    
-    # 7. Wandelen
     if any(x in t for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
     
     return 'Overig'
@@ -303,7 +305,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V51.0 (Training=Padel, Kracht=Kracht)...")
+    print("🚀 Start V52.0 (Double Filter Safety)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -403,7 +405,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V51.0) gegenereerd!")
+        print("✅ Dashboard (V52.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
