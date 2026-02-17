@@ -39,7 +39,6 @@ def solve_dates(date_str):
         clean = re.sub(r'[^a-zA-Z0-9\s:]', '', str(date_str).lower())
         parts = clean.split()
         day, month_str, year = int(parts[0]), parts[1][:3], int(parts[2])
-        # Probeer tijd te parsen als die er is, anders default
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day, hour=12) 
     except: return pd.to_datetime(date_str, errors='coerce')
 
@@ -48,11 +47,8 @@ def determine_category(row):
     t = str(row['Activiteitstype']).lower().strip()
     n = str(row['Naam']).lower().strip()
     
-    # 1. Krachttraining (PRIORITEIT)
     if any(x in t for x in ['kracht', 'power', 'gym', 'fitness', 'weight']) or \
-       any(x in n for x in ['kracht', 'power', 'gym', 'fitness']): 
-        return 'Krachttraining'
-
+       any(x in n for x in ['kracht', 'power', 'gym', 'fitness']): return 'Krachttraining'
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
     if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
@@ -60,7 +56,6 @@ def determine_category(row):
     if any(x in t for x in ['wandel', 'hike', 'walk']): return 'Wandelen'
     if any(x in t for x in ['padel', 'tennis', 'squash']): return 'Padel'
     if any(x in t for x in ['train', 'work', 'fit']): return 'Padel' 
-
     return 'Overig'
 
 def get_sport_style(cat):
@@ -98,18 +93,15 @@ def format_diff_html(cur, prev, unit=""):
 def generate_ytd_history(df, current_year):
     is_current_active_year = (current_year == datetime.now().year)
     day_limit = datetime.now().timetuple().tm_yday if is_current_active_year else 366
-    
     html = f"""<div class="chart-box full-width" style="margin-bottom:20px;">
         <h3 style="margin-top:0; margin-bottom:15px; font-size:16px;">📅 Verloop t.o.v. Vorige Jaren (Dezelfde Periode)</h3>
         <table class="history-table"><thead><tr><th>Jaar</th><th>Afstand</th><th>Tijd</th><th>Sessies</th></tr></thead><tbody>"""
-    
     max_km = 0; history_data = []
     for y in range(current_year, current_year - 6, -1):
         df_y = df[df['Jaar'] == y]; df_y_ytd = df_y[df_y['Day'] <= day_limit]
         km = df_y_ytd['Afstand_km'].sum(); sec = df_y_ytd['Beweegtijd_sec'].sum(); count = len(df_y_ytd)
         if km > max_km: max_km = km
         history_data.append((y, km, sec, count))
-    
     for y, km, sec, count in history_data:
         bar_w = (km / max_km * 100) if max_km > 0 else 0
         is_curr = (y == current_year)
@@ -123,8 +115,6 @@ def calculate_streaks(df):
     if valid.empty: return {}
     valid['WeekStart'] = valid['Datum'].dt.to_period('W-MON').dt.start_time
     weeks = sorted(valid['WeekStart'].unique()); days = sorted(valid['Datum'].dt.date.unique())
-    
-    # Logic voor streaks (ingekort voor leesbaarheid)
     cur_wk, max_wk, max_wk_dates = 0, 0, "-"
     if weeks:
         if (pd.Timestamp.now().to_period('W-MON').start_time - weeks[-1]).days <= 7:
@@ -139,7 +129,6 @@ def calculate_streaks(df):
                 if temp > max_wk: max_wk = temp; max_wk_dates = f"({start.strftime('%d %b %y')} - {(weeks[i-1]+timedelta(days=6)).strftime('%d %b %y')})"
                 temp = 1; start = weeks[i]
         if temp > max_wk: max_wk = temp; max_wk_dates = f"({start.strftime('%d %b %y')} - {(weeks[-1]+timedelta(days=6)).strftime('%d %b %y')})"
-
     cur_d, max_d, max_d_dates = 0, 0, "-"
     if days:
         if (datetime.now().date() - days[-1]).days <= 1:
@@ -154,7 +143,6 @@ def calculate_streaks(df):
                 if temp > max_d: max_d = temp; max_d_dates = f"({start.strftime('%d %b')} - {days[i-1].strftime('%d %b %y')})"
                 temp = 1; start = days[i]
         if temp > max_d: max_d = temp; max_d_dates = f"({start.strftime('%d %b')} - {days[-1].strftime('%d %b %y')})"
-
     return {'cur_week':cur_wk, 'max_week':max_wk, 'max_week_dates':max_wk_dates, 'cur_day':cur_d, 'max_day':max_d, 'max_day_dates':max_d_dates}
 
 def generate_stats_box(df, current_year):
@@ -166,134 +154,163 @@ def generate_stats_box(df, current_year):
     s = calculate_streaks(df)
     return f"""<div class="stats-box-container"><div class="goals-section"><h3 class="box-title">🎯 DOELEN {current_year}</h3><div class="goal-item"><div class="goal-label"><span>🚴 Buiten: {b_km:.0f}/{GOALS['bike_out']}km</span><span>{b_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{b_pct}%; background:{COLORS['bike_out']};"></div></div></div><div class="goal-item"><div class="goal-label"><span>👾 Zwift: {z_km:.0f}/{GOALS['zwift']}km</span><span>{z_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{z_pct}%; background:{COLORS['zwift']};"></div></div></div><div class="goal-item"><div class="goal-label"><span>🏃 Lopen: {r_km:.0f}/{GOALS['run']}km</span><span>{r_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{r_pct}%; background:{COLORS['run']};"></div></div></div></div><div class="streaks-section"><h3 class="box-title">🔥 REEKSEN</h3><div class="streak-row"><span class="label">Huidig Wekelijks:</span><span class="val">{s['cur_week']} weken</span></div><div class="streak-row"><span class="label">Record Wekelijks:</span><span class="val">{s['max_week']} weken</span></div><div class="streak-sub">{s['max_week_dates']}</div><div style="height:10px"></div><div class="streak-row"><span class="label">Huidig Dagelijks:</span><span class="val">{s['cur_day']} dagen</span></div><div class="streak-row"><span class="label">Record Dagelijks:</span><span class="val">{s['max_day']} dagen</span></div><div class="streak-sub">{s['max_day_dates']}</div></div></div>"""
 
-# --- NIEUWE ANALYSE CHART FUNCTIES (SCATTER, HEATMAP, ZONES) ---
-
+# --- INTERACTIEVE SCATTER PLOT (MET FILTER) ---
 def create_scatter_plot(df_yr):
-    # Filter: Alleen sporten waar snelheid relevant is
-    df_scat = df_yr[df_yr['Categorie'].isin(['Fiets', 'Zwift', 'Hardlopen'])].copy()
-    if df_scat.empty: return ""
-    
-    # Kleuren map voor scatter
-    color_map = {'Fiets': COLORS['bike_out'], 'Zwift': COLORS['zwift'], 'Hardlopen': COLORS['run']}
-    
-    fig = px.scatter(df_scat, x="Afstand_km", y="Gem_Snelheid", color="Categorie", 
-                     hover_data=['Naam', 'Datum'], color_discrete_map=color_map, opacity=0.7)
-    
+    # Data voorbereiden voor de 3 hoofdsporten
+    df_bike = df_yr[df_yr['Categorie'] == 'Fiets']
+    df_zwift = df_yr[df_yr['Categorie'] == 'Zwift']
+    df_run = df_yr[df_yr['Categorie'] == 'Hardlopen']
+
+    fig = go.Figure()
+
+    # Trace 0: Fiets
+    fig.add_trace(go.Scatter(
+        x=df_bike['Afstand_km'], y=df_bike['Gem_Snelheid'], mode='markers',
+        name='Fiets', marker=dict(color=COLORS['bike_out'], size=8, opacity=0.6),
+        text=df_bike['Naam'] + " (" + df_bike['Datum'].dt.strftime('%d-%m') + ")",
+        visible=True # Default visible
+    ))
+
+    # Trace 1: Zwift
+    fig.add_trace(go.Scatter(
+        x=df_zwift['Afstand_km'], y=df_zwift['Gem_Snelheid'], mode='markers',
+        name='Zwift', marker=dict(color=COLORS['zwift'], size=8, opacity=0.6),
+        text=df_zwift['Naam'] + " (" + df_zwift['Datum'].dt.strftime('%d-%m') + ")",
+        visible=True
+    ))
+
+    # Trace 2: Hardlopen
+    fig.add_trace(go.Scatter(
+        x=df_run['Afstand_km'], y=df_run['Gem_Snelheid'], mode='markers',
+        name='Hardlopen', marker=dict(color=COLORS['run'], size=8, opacity=0.6),
+        text=df_run['Naam'] + " (" + df_run['Datum'].dt.strftime('%d-%m') + ")",
+        visible=True
+    ))
+
+    # Dropdown menu configuratie
+    updatemenus = [dict(
+        active=0,
+        buttons=list([
+            dict(label="Alle Sporten",
+                 method="update",
+                 args=[{"visible": [True, True, True]},
+                       {"title": "⚡ Snelheid vs. Afstand (Alles)"}]),
+            dict(label="🚴 Fietsen",
+                 method="update",
+                 args=[{"visible": [True, False, False]},
+                       {"title": "⚡ Snelheid vs. Afstand (Fietsen)"}]),
+            dict(label="👾 Zwift",
+                 method="update",
+                 args=[{"visible": [False, True, False]},
+                       {"title": "⚡ Snelheid vs. Afstand (Zwift)"}]),
+            dict(label="🏃 Hardlopen",
+                 method="update",
+                 args=[{"visible": [False, False, True]},
+                       {"title": "⚡ Snelheid vs. Afstand (Hardlopen)"}]),
+        ]),
+        direction="down", pad={"r": 10, "t": 10}, showactive=True,
+        x=1, xanchor="right", y=1.2, yanchor="top"
+    )]
+
     fig.update_layout(
-        title='⚡ Snelheid vs. Afstand (Rechtsboven = Beter)', template='plotly_white',
-        margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        legend=dict(orientation="h", y=1.1)
+        title='⚡ Snelheid vs. Afstand', 
+        template='plotly_white',
+        updatemenus=updatemenus,
+        margin=dict(t=50,b=20,l=20,r=20), height=350, 
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis_title="Afstand (km)", yaxis_title="Snelheid (km/u)",
+        legend=dict(orientation="h", y=-0.2)
     )
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
+# --- INTERACTIEVE ZONE PIE CHART (MET FILTER) ---
 def create_zone_pie(df_yr):
-    # Zones toewijzen per sessie (op basis van gem hartslag)
-    # Alleen sessies met hartslagdata > 0
     df_hr = df_yr[(df_yr['Hartslag'] > 0) & (df_yr['Hartslag'].notna())].copy()
     if df_hr.empty: return ""
-    
     df_hr['Zone'] = df_hr['Hartslag'].apply(determine_zone)
-    zone_counts = df_hr['Zone'].value_counts().reset_index()
-    zone_counts.columns = ['Zone', 'Count']
     
-    # Zorg voor vaste volgorde en kleuren
     color_map = {'Z1 Herstel': COLORS['z1'], 'Z2 Duur': COLORS['z2'], 'Z3 Tempo': COLORS['z3'], 
                  'Z4 Drempel': COLORS['z4'], 'Z5 Max': COLORS['z5'], 'Onbekend': '#ccc'}
-    
-    fig = px.pie(zone_counts, values='Count', names='Zone', color='Zone', color_discrete_map=color_map, hole=0.5)
-    fig.update_layout(
-        title='❤️ Training Intensiteit (Aantal Sessies)', template='plotly_white',
-        margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)',
-        legend=dict(orientation="v")
-    )
+    zone_order = ['Z1 Herstel', 'Z2 Duur', 'Z3 Tempo', 'Z4 Drempel', 'Z5 Max']
+
+    # Helper voor tellen
+    def get_counts(sub_df):
+        c = sub_df['Zone'].value_counts().reindex(zone_order, fill_value=0).reset_index()
+        c.columns = ['Zone', 'Count']
+        return c[c['Count'] > 0]
+
+    all_counts = get_counts(df_hr)
+    bike_counts = get_counts(df_hr[df_hr['Categorie'] == 'Fiets'])
+    zwift_counts = get_counts(df_hr[df_hr['Categorie'] == 'Zwift'])
+    run_counts = get_counts(df_hr[df_hr['Categorie'] == 'Hardlopen'])
+
+    fig = go.Figure()
+
+    # Trace 0: Alle
+    fig.add_trace(go.Pie(labels=all_counts['Zone'], values=all_counts['Count'], name="Totaal", marker_colors=[color_map[z] for z in all_counts['Zone']], hole=0.5, visible=True))
+    # Trace 1: Fiets
+    fig.add_trace(go.Pie(labels=bike_counts['Zone'], values=bike_counts['Count'], name="Fiets", marker_colors=[color_map[z] for z in bike_counts['Zone']], hole=0.5, visible=False))
+    # Trace 2: Zwift
+    fig.add_trace(go.Pie(labels=zwift_counts['Zone'], values=zwift_counts['Count'], name="Zwift", marker_colors=[color_map[z] for z in zwift_counts['Zone']], hole=0.5, visible=False))
+    # Trace 3: Run
+    fig.add_trace(go.Pie(labels=run_counts['Zone'], values=run_counts['Count'], name="Run", marker_colors=[color_map[z] for z in run_counts['Zone']], hole=0.5, visible=False))
+
+    updatemenus = [dict(
+        active=0,
+        buttons=list([
+            dict(label="Alle Sporten", method="update", args=[{"visible": [True, False, False, False]}, {"title": "❤️ Intensiteit (Alle)"}]),
+            dict(label="🚴 Fietsen", method="update", args=[{"visible": [False, True, False, False]}, {"title": "❤️ Intensiteit (Fietsen)"}]),
+            dict(label="👾 Zwift", method="update", args=[{"visible": [False, False, True, False]}, {"title": "❤️ Intensiteit (Zwift)"}]),
+            dict(label="🏃 Hardlopen", method="update", args=[{"visible": [False, False, False, True]}, {"title": "❤️ Intensiteit (Hardlopen)"}]),
+        ]),
+        direction="down", pad={"r": 10, "t": 10}, showactive=True, x=1, xanchor="right", y=1.2, yanchor="top"
+    )]
+
+    fig.update_layout(title='❤️ Training Intensiteit', template='plotly_white', updatemenus=updatemenus, margin=dict(t=50,b=20,l=20,r=20), height=350, paper_bgcolor='rgba(0,0,0,0)')
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
 def create_heatmap(df_yr):
-    # Weekdag en Uur extractie
-    # Zorg dat we echte tijden hebben. De CSV heeft soms geen tijd, dus we faken 12:00 in de loader,
-    # maar idealiter heb je echte tijden. Als alles 12:00 is, is deze chart saai, maar werkt wel.
     df_hm = df_yr.copy()
     df_hm['Uur'] = df_hm['Datum'].dt.hour
     df_hm['Weekdag'] = df_hm['Datum'].dt.day_name()
-    
-    # Sortering weekdagen (Maandag eerst)
     days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     nl_days = {'Monday':'Ma', 'Tuesday':'Di', 'Wednesday':'Wo', 'Thursday':'Do', 'Friday':'Vr', 'Saturday':'Za', 'Sunday':'Zo'}
-    
-    # Groeperen
     grouped = df_hm.groupby(['Weekdag', 'Uur']).size().reset_index(name='Aantal')
-    
-    # Pivot voor heatmap data
     pivot = grouped.pivot(index='Uur', columns='Weekdag', values='Aantal').fillna(0)
-    pivot = pivot.reindex(columns=days_order) # Sorteer dagen
-    
+    pivot = pivot.reindex(columns=days_order)
     if pivot.empty: return ""
-
-    # Heatmap maken
-    fig = go.Figure(data=go.Heatmap(
-        z=pivot.values,
-        x=[nl_days[d] for d in pivot.columns],
-        y=pivot.index,
-        colorscale='Greens',
-        showscale=False
-    ))
-    
-    fig.update_layout(
-        title='📅 Trainingsmomenten', template='plotly_white',
-        margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)',
-        yaxis=dict(title='Uur van de dag', range=[6, 23]) # Focus op 06:00 tot 23:00
-    )
+    fig = go.Figure(data=go.Heatmap(z=pivot.values, x=[nl_days[d] for d in pivot.columns], y=pivot.index, colorscale='Greens', showscale=False))
+    fig.update_layout(title='📅 Trainingsmomenten', template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='Uur van de dag', range=[6, 23]))
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
 def create_strength_freq_chart(df_yr):
-    # Filter Kracht
     df_s = df_yr[df_yr['Categorie'] == 'Krachttraining']
     if df_s.empty: return ""
-    
-    # Tel sessies per maand
     counts = df_s.groupby(df_s['Datum'].dt.month).size().reindex(range(1,13), fill_value=0)
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
-    
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=months, y=counts, 
-        name="Sessies", marker_color=COLORS['strength'],
-        text=counts, textposition='auto'
-    ))
-    
-    # Target lijn (bijv 8 keer per maand = 2x per week)
-    fig.add_shape(type="line", x0=-0.5, y0=8, x1=11.5, y1=8, 
-                  line=dict(color="gray", width=2, dash="dot"))
-
-    fig.update_layout(
-        title='🏋️ Kracht Frequentie (Sessies per Maand)', template='plotly_white',
-        margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)',
-        yaxis=dict(title='Aantal Sessies')
-    )
+    fig.add_trace(go.Bar(x=months, y=counts, name="Sessies", marker_color=COLORS['strength'], text=counts, textposition='auto'))
+    fig.add_shape(type="line", x0=-0.5, y0=8, x1=11.5, y1=8, line=dict(color="gray", width=2, dash="dot"))
+    fig.update_layout(title='🏋️ Kracht Frequentie (Sessies per Maand)', template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='Aantal Sessies'))
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
 
-# --- BESTAANDE CHART FUNCTIE (STACKED) ---
 def create_monthly_charts(df_cur, df_prev, year):
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     def get_month_data(df, categories):
         mask = df['Categorie'].isin(categories)
         return df[mask].groupby(df['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
-    
     prev_total = get_month_data(df_prev, ['Fiets', 'Zwift'])
     cur_zwift = get_month_data(df_cur, ['Zwift']); cur_out = get_month_data(df_cur, ['Fiets'])
-    
     fig_bike = go.Figure()
     fig_bike.add_trace(go.Bar(x=months, y=prev_total, name=f"{year-1}", marker_color=COLORS['ref_gray'], offsetgroup=1))
     fig_bike.add_trace(go.Bar(x=months, y=cur_zwift, name=f"{year} Zwift", marker_color=COLORS['zwift'], offsetgroup=2))
     fig_bike.add_trace(go.Bar(x=months, y=cur_out, name=f"{year} Buiten", marker_color=COLORS['bike_out'], base=cur_zwift, offsetgroup=2))
     fig_bike.update_layout(title='🚴 Fietsen Totaal (km)', template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
-
     prev_run = get_month_data(df_prev, ['Hardlopen']); cur_run = get_month_data(df_cur, ['Hardlopen'])
     fig_run = go.Figure()
     fig_run.add_trace(go.Bar(x=months, y=prev_run, name=f"{year-1}", marker_color=COLORS['ref_gray']))
     fig_run.add_trace(go.Bar(x=months, y=cur_run, name=f"{year}", marker_color=COLORS['run']))
     fig_run.update_layout(title='🏃 Hardlopen (km)', template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
-
     return f'<div class="chart-grid"><div class="chart-box full-width">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn")}</div><div class="chart-box full-width">{fig_run.to_html(full_html=False, include_plotlyjs="cdn")}</div></div>'
 
 def generate_sport_cards(df_yr, df_prev_comp):
@@ -301,7 +318,6 @@ def generate_sport_cards(df_yr, df_prev_comp):
     cats_present = df_yr['Categorie'].unique()
     custom_order = ['Fiets', 'Zwift', 'Hardlopen', 'Krachttraining', 'Padel', 'Wandelen', 'Zwemmen', 'Overig']
     sorted_cats = [c for c in custom_order if c in cats_present] + [c for c in cats_present if c not in custom_order]
-
     for cat in sorted_cats:
         df_s = df_yr[df_yr['Categorie'] == cat]
         df_p = df_prev_comp[df_prev_comp['Categorie'] == cat] if df_prev_comp is not None else pd.DataFrame()
@@ -311,16 +327,11 @@ def generate_sport_cards(df_yr, df_prev_comp):
         dist = df_s['Afstand_km'].sum(); dist_p = df_p['Afstand_km'].sum() if not df_p.empty else 0
         tijd = df_s['Beweegtijd_sec'].sum(); tijd_p = df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
         hr = df_s['Hartslag'].mean(); watt = df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
-        
         spd_val = "-"
         if cat == 'Hardlopen' and dist > 0: spd_val = f"{int((tijd/dist)//60)}:{int((tijd/dist)%60):02d} /km"
         elif tijd > 0 and cat not in ['Padel', 'Krachttraining']: spd_val = f"{(dist/(tijd/3600)):.1f} km/u"
-
-        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div>
-                   <div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
-        
-        if cat not in ['Padel', 'Krachttraining']:
-            rows += f"""<div class="stat-row"><span>Afstand</span> <div class="val-group"><strong>{dist:,.0f} km</strong> {format_diff_html(dist, dist_p)}</div></div><div class="stat-row"><span>Snelheid</span> <strong>{spd_val}</strong></div>"""
+        rows = f"""<div class="stat-row"><span>Sessies</span> <div class="val-group"><strong>{n_sessies}</strong> {format_diff_html(n_sessies, n_prev)}</div></div><div class="stat-row"><span>Tijd</span> <div class="val-group"><strong>{format_time(tijd)}</strong> {format_diff_html(tijd/3600, tijd_p/3600, "u")}</div></div>"""
+        if cat not in ['Padel', 'Krachttraining']: rows += f"""<div class="stat-row"><span>Afstand</span> <div class="val-group"><strong>{dist:,.0f} km</strong> {format_diff_html(dist, dist_p)}</div></div><div class="stat-row"><span>Snelheid</span> <strong>{spd_val}</strong></div>"""
         if cat == 'Zwift' and pd.notna(watt) and watt > 0: rows += f'<div class="stat-row"><span>Wattage</span> <strong>⚡ {watt:.0f} W</strong></div>'
         if pd.notna(hr): rows += f'<div class="stat-row"><span>Hartslag</span> <strong class="hr-blur">❤️ {hr:.0f}</strong></div>'
         html += f"""<div class="sport-card"><div class="sport-header" style="color:{color}"><div class="icon-circle" style="background:{color}15">{icon}</div><h3>{cat}</h3></div><div class="sport-body">{rows}</div></div>"""
@@ -369,7 +380,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V52.0 (Deep Dive Analysis)...")
+    print("🚀 Start V53.0 (Interactive Filtering)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -400,7 +411,6 @@ def genereer_dashboard():
             ytd = datetime.now().timetuple().tm_yday
             df_prev_comp = df_prev[df_prev['Day'] <= ytd] if yr == datetime.now().year else df_prev
             
-            # Charts
             scatter_html = create_scatter_plot(df_yr)
             zone_html = create_zone_pie(df_yr)
             hm_html = create_heatmap(df_yr)
@@ -417,17 +427,9 @@ def genereer_dashboard():
                 {generate_ytd_history(df, yr)}
                 <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
                 <h3 class="sec-sub">Maandelijkse Voortgang</h3>{create_monthly_charts(df_yr, df_prev, yr)}
-                
                 <h3 class="sec-sub">Diepte-analyse</h3>
-                <div class="chart-grid">
-                   {scatter_html}
-                   {zone_html}
-                </div>
-                <div class="chart-grid">
-                   {hm_html}
-                   {str_html}
-                </div>
-
+                <div class="chart-grid">{scatter_html}{zone_html}</div>
+                <div class="chart-grid">{hm_html}{str_html}</div>
                 <h3 class="sec-sub">Records {yr}</h3>{generate_hall_of_fame(df_yr)}
                 <h3 class="sec-sub">Logboek {yr}</h3>{generate_logbook(df_yr, yr)}
             </div>"""
@@ -480,7 +482,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V52.0) gegenereerd!")
+        print("✅ Dashboard (V53.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
