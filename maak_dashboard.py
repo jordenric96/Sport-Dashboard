@@ -61,10 +61,6 @@ def format_diff_html(cur, prev, unit=""):
 
 # --- 5-JAREN VERGELIJKING (YTD) ---
 def generate_ytd_history(df, current_year):
-    # Bepaal tot welke dag van het jaar we moeten kijken (YTD)
-    # Als we naar een historisch jaar kijken (bv 2023), kijken we naar het hele jaar (366)
-    # Als we naar het HUIDIGE jaar kijken (bv 2025), kijken we tot VANDAAG.
-    
     is_current_active_year = (current_year == datetime.now().year)
     day_limit = datetime.now().timetuple().tm_yday if is_current_active_year else 366
     
@@ -73,39 +69,28 @@ def generate_ytd_history(df, current_year):
         <h3 style="margin-top:0; margin-bottom:15px; font-size:16px;">📅 Verloop t.o.v. Vorige Jaren (Dezelfde Periode)</h3>
         <table class="history-table">
             <thead>
-                <tr>
-                    <th>Jaar</th>
-                    <th>Afstand</th>
-                    <th>Tijd</th>
-                    <th>Sessies</th>
-                </tr>
+                <tr><th>Jaar</th><th>Afstand</th><th>Tijd</th><th>Sessies</th></tr>
             </thead>
             <tbody>
     """
-    
-    # We kijken naar dit jaar en de 5 jaren ervoor
     max_km = 0
     history_data = []
     
     for y in range(current_year, current_year - 6, -1):
         df_y = df[df['Jaar'] == y]
-        # Filter YTD
         df_y_ytd = df_y[df_y['Day'] <= day_limit]
         
         km = df_y_ytd['Afstand_km'].sum()
         sec = df_y_ytd['Beweegtijd_sec'].sum()
         count = len(df_y_ytd)
-        
         if km > max_km: max_km = km
         history_data.append((y, km, sec, count))
     
     for y, km, sec, count in history_data:
-        # Bar breedte berekenen
         bar_w = (km / max_km * 100) if max_km > 0 else 0
         is_curr = (y == current_year)
         row_style = "font-weight:bold; background:#f8fafc;" if is_curr else ""
         bar_color = COLORS['primary'] if is_curr else '#cbd5e1'
-        
         hours = sec / 3600
         
         html += f"""
@@ -123,9 +108,7 @@ def generate_ytd_history(df, current_year):
             <td style="width:60px; text-align:right;">{count}</td>
         </tr>
         """
-        
-    html += "</tbody></table></div>"
-    return html
+    return html + "</tbody></table></div>"
 
 # --- STREAK ---
 def calculate_streaks(df):
@@ -274,18 +257,73 @@ def generate_hall_of_fame(df):
         html += f"""<div class="hof-card"><div class="hof-header" style="color:{color}">{icon} {cat}</div>{sections}</div>"""
     return html + '</div>'
 
+# --- NIEUWE CHART FUNCTIE (STACKED & GROUPED) ---
 def create_monthly_charts(df_cur, df_prev, year):
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
-    def make_chart(cat, title, color):
-        c_m = df_cur[df_cur['Categorie'] == cat].groupby(df_cur['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
-        p_m = df_prev[df_prev['Categorie'] == cat].groupby(df_prev['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
-        if c_m.sum() == 0 and p_m.sum() == 0: return ""
-        f = go.Figure()
-        f.add_trace(go.Bar(x=months, y=p_m, name=f"{year-1}", marker_color=COLORS['ref_gray']))
-        f.add_trace(go.Bar(x=months, y=c_m, name=f"{year}", marker_color=color))
-        f.update_layout(title=title, template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=True, legend=dict(orientation="h", y=1.1))
-        return f'<div class="chart-box full-width">{f.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
-    return f"""<div class="chart-grid">{make_chart('Fiets', '🚴 Fietsen Buiten (km)', COLORS['bike_out'])}{make_chart('Zwift', '👾 Zwift (km)', COLORS['zwift'])}{make_chart('Hardlopen', '🏃 Hardlopen (km)', COLORS['run'])}</div>"""
+    
+    # Hulpfunctie
+    def get_month_data(df, categories):
+        mask = df['Categorie'].isin(categories)
+        return df[mask].groupby(df['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
+
+    # 1. FIETSEN GRAFIEK (Buiten + Zwift)
+    # Vorig jaar: totaal
+    prev_total = get_month_data(df_prev, ['Fiets', 'Zwift'])
+    # Dit jaar: gesplitst
+    cur_zwift = get_month_data(df_cur, ['Zwift'])
+    cur_out = get_month_data(df_cur, ['Fiets'])
+
+    fig_bike = go.Figure()
+
+    # Vorig jaar (Grijs) - Offsetgroup 1
+    fig_bike.add_trace(go.Bar(
+        x=months, y=prev_total, name=f"{year-1} Totaal", 
+        marker_color=COLORS['ref_gray'], offsetgroup=1
+    ))
+
+    # Dit jaar: Zwift (Oranje) - Offsetgroup 2 (Onderop)
+    fig_bike.add_trace(go.Bar(
+        x=months, y=cur_zwift, name=f"{year} Zwift", 
+        marker_color=COLORS['zwift'], offsetgroup=2
+    ))
+
+    # Dit jaar: Buiten (Blauw) - Offsetgroup 2 (Gestapeld op Zwift)
+    # base=cur_zwift zorgt voor het stapelen
+    fig_bike.add_trace(go.Bar(
+        x=months, y=cur_out, name=f"{year} Buiten", 
+        marker_color=COLORS['bike_out'], base=cur_zwift, offsetgroup=2
+    ))
+
+    fig_bike.update_layout(
+        title='🚴 Fietsen Totaal (Buiten + Zwift)', 
+        template='plotly_white', barmode='group',
+        margin=dict(t=40,b=20,l=20,r=20), height=300, 
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+        showlegend=True, legend=dict(orientation="h", y=1.1)
+    )
+
+    # 2. HARDLOPEN GRAFIEK (Gewoon vergelijking)
+    prev_run = get_month_data(df_prev, ['Hardlopen'])
+    cur_run = get_month_data(df_cur, ['Hardlopen'])
+    
+    fig_run = go.Figure()
+    fig_run.add_trace(go.Bar(x=months, y=prev_run, name=f"{year-1}", marker_color=COLORS['ref_gray']))
+    fig_run.add_trace(go.Bar(x=months, y=cur_run, name=f"{year}", marker_color=COLORS['run']))
+    
+    fig_run.update_layout(
+        title='🏃 Hardlopen (km)', 
+        template='plotly_white', barmode='group', 
+        margin=dict(t=40,b=20,l=20,r=20), height=300, 
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+        showlegend=True, legend=dict(orientation="h", y=1.1)
+    )
+
+    return f"""
+    <div class="chart-grid">
+        <div class="chart-box full-width">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn")}</div>
+        <div class="chart-box full-width">{fig_run.to_html(full_html=False, include_plotlyjs="cdn")}</div>
+    </div>
+    """
 
 def generate_gear_section(df):
     dfg = df.dropna(subset=['Gear']).copy()
@@ -310,7 +348,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V49.0 (Wide Layout & 5-Year Blocks)...")
+    print("🚀 Start V50.0 (Combined Cycling Chart)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -342,7 +380,6 @@ def genereer_dashboard():
             ytd = datetime.now().timetuple().tm_yday
             df_prev_comp = df_prev[df_prev['Day'] <= ytd] if yr == datetime.now().year else df_prev
             
-            # KPI Sectie met TOTALE TIJD vergelijking
             t_cur = df_yr['Beweegtijd_sec'].sum()
             t_prev = df_prev_comp['Beweegtijd_sec'].sum()
             
@@ -411,7 +448,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V49.0) gegenereerd!")
+        print("✅ Dashboard (V50.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
