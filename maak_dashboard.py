@@ -30,33 +30,37 @@ def solve_dates(date_str):
         return pd.Timestamp(year=year, month=d_map.get(month_str, 1), day=day)
     except: return pd.to_datetime(date_str, errors='coerce')
 
-# --- CATEGORIE (ENKEL OP ACTIVITEITSTYPE) ---
+# --- CATEGORIE BEPALING (AANGEPAST) ---
 def determine_category(row):
-    # We kijken ALLEEN naar Activiteitstype
-    t = str(row['Activiteitstype']).lower().strip()
+    # We kijken naar zowel Activiteitstype als de Naam van de activiteit
+    t_type = str(row['Activiteitstype']).lower().strip()
+    t_naam = str(row['Naam']).lower().strip() if 'Naam' in row else ""
     
     # 1. ZWIFT (Virtuele fietsrit)
-    if 'virtu' in t: return 'Zwift'
+    if 'virtu' in t_type: return 'Zwift'
     
-    # 2. KRACHT (Krachttraining)
-    if 'kracht' in t: return 'Kracht'
+    # 2. KRACHT (Krachttraining) - CHECK DIT EERST!
+    # Als 'kracht' of 'strength' in het type OF de naam staat, is het Kracht.
+    if 'kracht' in t_type or 'kracht' in t_naam or 'strength' in t_type or 'strength' in t_naam: 
+        return 'Kracht'
     
-    # 3. PADEL (Training / Workout / Fitness -> Padel)
-    # Omdat we eerst 'kracht' checken, zal 'krachttraining' hierboven al gepakt zijn.
-    # Dus alles wat nu nog 'training' heet, is Padel.
-    if 'train' in t or 'work' in t or 'fit' in t: return 'Padel'
+    # 3. PADEL
+    # Check expliciet op het woord padel
+    if 'padel' in t_type or 'padel' in t_naam: return 'Padel'
+    # Check op generieke termen (omdat Kracht al is afgevangen, is dit waarschijnlijk Padel)
+    if 'train' in t_type or 'work' in t_type or 'fit' in t_type: return 'Padel'
     
     # 4. FIETSEN (Fietsrit, E-bike, etc.)
-    if 'fiets' in t or 'wieler' in t or 'gravel' in t or 'mtb' in t or 'ride' in t: return 'Fiets'
+    if 'fiets' in t_type or 'wieler' in t_type or 'gravel' in t_type or 'mtb' in t_type or 'ride' in t_type: return 'Fiets'
     
     # 5. HARDLOPEN (Hardloopsessie, Lopen)
-    if 'loop' in t or 'run' in t: return 'Hardlopen'
+    if 'loop' in t_type or 'run' in t_type: return 'Hardlopen'
     
     # 6. WANDELEN
-    if 'wandel' in t or 'hike' in t: return 'Wandelen'
+    if 'wandel' in t_type or 'hike' in t_type: return 'Wandelen'
     
     # 7. ZWEMMEN
-    if 'zwem' in t: return 'Zwemmen'
+    if 'zwem' in t_type: return 'Zwemmen'
     
     return 'Overig'
 
@@ -304,26 +308,32 @@ def generate_kpi(lbl, val, icon, diff_html):
 def genereer_dashboard():
     print("🚀 Start V53.0 (Type-Only & Force Strength)...")
     try:
+        # 1. Lees bestand
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
               'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 
               'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Gemiddeld wattage':'Wattage'}
         df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
         
+        # 2. Maak numeriek
         for c in ['Afstand_km', 'Beweegtijd_sec', 'Gem_Snelheid']:
             if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
         df['Hartslag'] = pd.to_numeric(df['Hartslag'], errors='coerce')
         if 'Wattage' in df.columns: df['Wattage'] = pd.to_numeric(df['Wattage'], errors='coerce')
         
+        # 3. Datums & Categorie
         df['Datum'] = df['Datum'].apply(solve_dates)
         df = df.dropna(subset=['Datum'])
-        df['Categorie'] = df.apply(determine_category, axis=1)
+        df['Categorie'] = df.apply(determine_category, axis=1) # Hier wordt de nieuwe functie gebruikt
         df['Jaar'] = df['Datum'].dt.year
         df['Day'] = df['Datum'].dt.dayofyear
+        
+        # Snelheid fix voor Strava exports (m/s naar km/u)
         if df['Gem_Snelheid'].mean() < 10: df['Gem_Snelheid'] *= 3.6
         
         print(f"✅ Data geladen. Sessies in 2025: {len(df[df['Jaar']==2025])}")
         
+        # 4. Bouw HTML
         years = sorted(df['Jaar'].unique(), reverse=True)
         nav, sects = "", ""
         stats_box = generate_stats_box(df, datetime.now().year)
@@ -353,59 +363,78 @@ def genereer_dashboard():
             </div>"""
             
         nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Carrière</button>'
-        sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="sec-title">All-Time Records</h2>{generate_hall_of_fame(df)}<h2 class="sec-title" style="margin-top:30px">De Garage</h2>{generate_gear_section(df)}</div>'
         
-        html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sportoverzicht Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
-        :root{{--primary:#0f172a;--bg:#f8fafc;--card:#ffffff;--text:#1e293b;--label:#94a3b8}}
-        body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:60px}}
-        .container{{max-width:1200px;margin:0 auto}}
-        .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}
-        .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;cursor:pointer}}
-        .hr-blur{{filter:blur(5px);transition:0.3s}}
-        .gold-banner{{background:linear-gradient(135deg, #d4af37 0%, #f59e0b 100%);color:white;padding:15px;border-radius:12px;margin-bottom:20px;font-weight:700;display:flex;align-items:center;cursor:pointer}}
-        .nav{{display:flex;gap:8px;overflow-x:auto;margin-bottom:20px;padding-bottom:5px;scrollbar-width:none}}
-        .nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer}}
-        .nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary)}}
-        .stats-box-container{{display:flex;gap:15px;margin-bottom:25px;flex-wrap:wrap}}
-        .goals-section, .streaks-section{{flex:1;background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0;min-width:300px}}
-        .box-title{{font-size:11px;color:var(--label);text-transform:uppercase;margin-bottom:12px;letter-spacing:1px;font-weight:700}}
-        .goal-item{{margin-bottom:10px}}.goal-label{{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px}}
-        .goal-bar{{background:#f1f5f9;height:6px;border-radius:3px;overflow:hidden}}.goal-bar div{{height:100%;border-radius:3px}}
-        .streak-row{{display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px}}.streak-row .val{{font-weight:700;color:var(--primary)}}
-        .streak-sub{{font-size:10px;color:var(--label);text-align:right;font-style:italic}}
-        .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px;margin-bottom:25px}}
-        .kpi-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
-        .sport-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:15px;margin-bottom:25px}}
-        .sport-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
-        .sport-header{{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:16px}}
-        .icon-circle{{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}}
-        .stat-row{{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:#64748b}}
-        .stat-row strong{{color:var(--text)}} .val-group{{display:flex;gap:6px;align-items:center}}
-        .hof-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px}}
-        .hof-card{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
-        .hof-sec{{margin-bottom:12px}} .sec-lbl{{font-size:9px;color:var(--label);text-transform:uppercase;font-weight:700;margin-bottom:4px}}
-        .top3-item{{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px}}
-        .medal{{margin-right:5px}} .t3-val{{font-weight:600}} .t3-date{{color:var(--label);font-size:10px}}
-        .sec-title{{font-size:20px;font-weight:700;margin-bottom:15px}}
-        .sec-sub{{font-size:12px;color:var(--label);text-transform:uppercase;font-weight:700;margin:25px 0 10px 0;letter-spacing:1px}}
-        .chart-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:15px;}}
-        .chart-box{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
-        .full-width{{width:100%;box-sizing:border-box}}
-        .log-table{{width:100%;border-collapse:collapse;font-size:12px}} .log-table th{{text-align:left;color:var(--label);padding:8px}} .log-table td{{padding:8px;border-top:1px solid #f1f5f9}}
-        .history-table{{width:100%; border-collapse:collapse; font-size:13px;}} .history-table th{{text-align:left; color:var(--label); padding:8px; border-bottom:1px solid #e2e8f0;}} .history-table td{{padding:8px; border-bottom:1px solid #f1f5f9;}}
-        </style></head><body><div class="container">
-        <div class="header"><h1 style="font-size:24px;margin:0">Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
-        {stats_box}<div class="nav">{nav}</div>{sects}</div>
-        <script>
-        function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active');}}
-        function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>e.classList.remove('hr-blur'));document.querySelector('.lock-btn').style.display='none';}}}}
-        </script></body></html>"""
+        # 5. Voeg alles samen in HTML template
+        final_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Sport Dashboard</title>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; margin:0; padding:20px; }}
+                .container {{ max-width: 1100px; margin: 0 auto; }}
+                .stats-box-container {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 25px; }}
+                .box-title {{ margin: 0 0 15px 0; font-size: 14px; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; }}
+                .goal-item {{ margin-bottom: 12px; }}
+                .goal-label {{ display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; margin-bottom: 4px; }}
+                .goal-bar {{ height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }}
+                .goal-bar div {{ height: 100%; border-radius: 4px; }}
+                .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{ display: grid; gap: 15px; margin-bottom: 25px; }}
+                .kpi-grid {{ grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }}
+                .sport-grid {{ grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }}
+                .hof-grid {{ grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }}
+                .chart-grid {{ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }}
+                .kpi-card, .sport-card, .hof-card, .chart-box {{ background: white; border-radius: 12px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
+                .sport-header, .hof-header {{ display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 700; }}
+                .icon-circle {{ width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }}
+                .stat-row {{ display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed #f1f5f9; }}
+                .stat-row:last-child {{ border: none; }}
+                .val-group {{ display: flex; align-items: center; gap: 6px; }}
+                .top3-item {{ display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; padding: 4px 8px; background: #f8fafc; border-radius: 6px; }}
+                .sec-lbl {{ font-size: 11px; font-weight: 700; color: #64748b; margin: 10px 0 5px 0; text-transform: uppercase; }}
+                .nav-bar {{ display: flex; gap: 10px; margin-bottom: 25px; overflow-x: auto; padding-bottom: 5px; }}
+                .nav-btn {{ padding: 8px 16px; border: none; background: white; border-radius: 20px; cursor: pointer; font-weight: 600; color: #64748b; transition: all 0.2s; }}
+                .nav-btn.active {{ background: #0f172a; color: white; }}
+                .log-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+                .log-table th {{ text-align: left; color: #64748b; padding: 8px; border-bottom: 2px solid #f1f5f9; }}
+                .log-table td {{ padding: 8px; border-bottom: 1px solid #f1f5f9; }}
+                @media (max-width: 768px) {{ .stats-box-container {{ grid-template-columns: 1fr; }} }}
+            </style>
+            <script>
+                function openTab(evt, yearName) {{
+                    var i, content, links;
+                    content = document.getElementsByClassName("tab-content");
+                    for (i = 0; i < content.length; i++) {{ content[i].style.display = "none"; }}
+                    links = document.getElementsByClassName("nav-btn");
+                    for (i = 0; i < links.length; i++) {{ links[i].className = links[i].className.replace(" active", ""); }}
+                    document.getElementById(yearName).style.display = "block";
+                    evt.currentTarget.className += " active";
+                }}
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <h1 style="margin-bottom:5px;">Mijn Sport Dashboard</h1>
+                <p style="color:#64748b; margin-top:0; font-size:14px;">Laatste update: {datetime.now().strftime('%d-%m-%Y %H:%M')}</p>
+                {stats_box}
+                <div class="nav-bar">{nav}</div>
+                {sects}
+            </div>
+        </body>
+        </html>
+        """
         
-        with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V53.0) gegenereerd!")
+        # 6. Schrijf bestand
+        with open('dashboard.html', 'w', encoding='utf-8') as f:
+            f.write(final_html)
+            
+        print("🎉 Dashboard succesvol gegenereerd: dashboard.html")
 
     except Exception as e:
-        print(f"❌ Fout: {e}")
+        print(f"❌ Fout opgetreden: {e}")
 
 if __name__ == "__main__":
     genereer_dashboard()
