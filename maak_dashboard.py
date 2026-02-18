@@ -12,6 +12,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # --- CONFIGURATIE ---
 GOALS = {'bike_out': 3000, 'zwift': 3000, 'run': 350}
 
+# Plotly Config: Blokkeer scroll-zoom en verberg de toolbar
+PLOT_CONFIG = {
+    'displayModeBar': False, # Verberg de balk met tools bovenaan
+    'staticPlot': False,     # Interactie (klikken) mag wel
+    'scrollZoom': False,     # Blokkeer scrollen om te zoomen
+    'responsive': True
+}
+
 # Pas deze grenzen aan op basis van jouw eigen hartslagzones!
 HR_ZONES = {
     'Z1 Herstel': 135,   # Alles onder 135
@@ -154,76 +162,42 @@ def generate_stats_box(df, current_year):
     s = calculate_streaks(df)
     return f"""<div class="stats-box-container"><div class="goals-section"><h3 class="box-title">🎯 DOELEN {current_year}</h3><div class="goal-item"><div class="goal-label"><span>🚴 Buiten: {b_km:.0f}/{GOALS['bike_out']}km</span><span>{b_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{b_pct}%; background:{COLORS['bike_out']};"></div></div></div><div class="goal-item"><div class="goal-label"><span>👾 Zwift: {z_km:.0f}/{GOALS['zwift']}km</span><span>{z_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{z_pct}%; background:{COLORS['zwift']};"></div></div></div><div class="goal-item"><div class="goal-label"><span>🏃 Lopen: {r_km:.0f}/{GOALS['run']}km</span><span>{r_pct:.1f}%</span></div><div class="goal-bar"><div style="width:{r_pct}%; background:{COLORS['run']};"></div></div></div></div><div class="streaks-section"><h3 class="box-title">🔥 REEKSEN</h3><div class="streak-row"><span class="label">Huidig Wekelijks:</span><span class="val">{s['cur_week']} weken</span></div><div class="streak-row"><span class="label">Record Wekelijks:</span><span class="val">{s['max_week']} weken</span></div><div class="streak-sub">{s['max_week_dates']}</div><div style="height:10px"></div><div class="streak-row"><span class="label">Huidig Dagelijks:</span><span class="val">{s['cur_day']} dagen</span></div><div class="streak-row"><span class="label">Record Dagelijks:</span><span class="val">{s['max_day']} dagen</span></div><div class="streak-sub">{s['max_day_dates']}</div></div></div>"""
 
-# --- INTERACTIEVE SCATTER PLOT (MET FILTER) ---
+# --- INTERACTIEVE SCATTER PLOT (MET FILTER & MOBILE FIX) ---
 def create_scatter_plot(df_yr):
-    # Data voorbereiden voor de 3 hoofdsporten
     df_bike = df_yr[df_yr['Categorie'] == 'Fiets']
     df_zwift = df_yr[df_yr['Categorie'] == 'Zwift']
     df_run = df_yr[df_yr['Categorie'] == 'Hardlopen']
 
     fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df_bike['Afstand_km'], y=df_bike['Gem_Snelheid'], mode='markers', name='Fiets', marker=dict(color=COLORS['bike_out'], size=8, opacity=0.6), text=df_bike['Naam'] + " (" + df_bike['Datum'].dt.strftime('%d-%m') + ")", visible=True))
+    fig.add_trace(go.Scatter(x=df_zwift['Afstand_km'], y=df_zwift['Gem_Snelheid'], mode='markers', name='Zwift', marker=dict(color=COLORS['zwift'], size=8, opacity=0.6), text=df_zwift['Naam'] + " (" + df_zwift['Datum'].dt.strftime('%d-%m') + ")", visible=True))
+    fig.add_trace(go.Scatter(x=df_run['Afstand_km'], y=df_run['Gem_Snelheid'], mode='markers', name='Hardlopen', marker=dict(color=COLORS['run'], size=8, opacity=0.6), text=df_run['Naam'] + " (" + df_run['Datum'].dt.strftime('%d-%m') + ")", visible=True))
 
-    # Trace 0: Fiets
-    fig.add_trace(go.Scatter(
-        x=df_bike['Afstand_km'], y=df_bike['Gem_Snelheid'], mode='markers',
-        name='Fiets', marker=dict(color=COLORS['bike_out'], size=8, opacity=0.6),
-        text=df_bike['Naam'] + " (" + df_bike['Datum'].dt.strftime('%d-%m') + ")",
-        visible=True # Default visible
-    ))
-
-    # Trace 1: Zwift
-    fig.add_trace(go.Scatter(
-        x=df_zwift['Afstand_km'], y=df_zwift['Gem_Snelheid'], mode='markers',
-        name='Zwift', marker=dict(color=COLORS['zwift'], size=8, opacity=0.6),
-        text=df_zwift['Naam'] + " (" + df_zwift['Datum'].dt.strftime('%d-%m') + ")",
-        visible=True
-    ))
-
-    # Trace 2: Hardlopen
-    fig.add_trace(go.Scatter(
-        x=df_run['Afstand_km'], y=df_run['Gem_Snelheid'], mode='markers',
-        name='Hardlopen', marker=dict(color=COLORS['run'], size=8, opacity=0.6),
-        text=df_run['Naam'] + " (" + df_run['Datum'].dt.strftime('%d-%m') + ")",
-        visible=True
-    ))
-
-    # Dropdown menu configuratie
     updatemenus = [dict(
         active=0,
         buttons=list([
-            dict(label="Alle Sporten",
-                 method="update",
-                 args=[{"visible": [True, True, True]},
-                       {"title": "⚡ Snelheid vs. Afstand (Alles)"}]),
-            dict(label="🚴 Fietsen",
-                 method="update",
-                 args=[{"visible": [True, False, False]},
-                       {"title": "⚡ Snelheid vs. Afstand (Fietsen)"}]),
-            dict(label="👾 Zwift",
-                 method="update",
-                 args=[{"visible": [False, True, False]},
-                       {"title": "⚡ Snelheid vs. Afstand (Zwift)"}]),
-            dict(label="🏃 Hardlopen",
-                 method="update",
-                 args=[{"visible": [False, False, True]},
-                       {"title": "⚡ Snelheid vs. Afstand (Hardlopen)"}]),
+            dict(label="Alle Sporten", method="update", args=[{"visible": [True, True, True]}, {"title": "⚡ Snelheid vs. Afstand (Alles)"}]),
+            dict(label="🚴 Fietsen", method="update", args=[{"visible": [True, False, False]}, {"title": "⚡ Snelheid vs. Afstand (Fietsen)"}]),
+            dict(label="👾 Zwift", method="update", args=[{"visible": [False, True, False]}, {"title": "⚡ Snelheid vs. Afstand (Zwift)"}]),
+            dict(label="🏃 Hardlopen", method="update", args=[{"visible": [False, False, True]}, {"title": "⚡ Snelheid vs. Afstand (Hardlopen)"}]),
         ]),
-        direction="down", pad={"r": 10, "t": 10}, showactive=True,
-        x=1, xanchor="right", y=1.2, yanchor="top"
+        direction="down", pad={"r": 10, "t": 10}, showactive=True, x=1, xanchor="right", y=1.2, yanchor="top"
     )]
 
     fig.update_layout(
         title='⚡ Snelheid vs. Afstand', 
         template='plotly_white',
         updatemenus=updatemenus,
-        margin=dict(t=50,b=20,l=20,r=20), height=350, 
+        margin=dict(t=50,b=20,l=10,r=10), # Marges kleiner gezet voor mobiel
+        height=350, 
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis_title="Afstand (km)", yaxis_title="Snelheid (km/u)",
+        xaxis=dict(title="Afstand (km)", fixedrange=True), # FIXEDRANGE TRUE = SCROLL FIX
+        yaxis=dict(title="Snelheid (km/u)", fixedrange=True), # FIXEDRANGE TRUE = SCROLL FIX
         legend=dict(orientation="h", y=-0.2)
     )
-    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
-# --- INTERACTIEVE ZONE PIE CHART (MET FILTER) ---
+# --- INTERACTIEVE ZONE PIE CHART ---
 def create_zone_pie(df_yr):
     df_hr = df_yr[(df_yr['Hartslag'] > 0) & (df_yr['Hartslag'].notna())].copy()
     if df_hr.empty: return ""
@@ -233,7 +207,6 @@ def create_zone_pie(df_yr):
                  'Z4 Drempel': COLORS['z4'], 'Z5 Max': COLORS['z5'], 'Onbekend': '#ccc'}
     zone_order = ['Z1 Herstel', 'Z2 Duur', 'Z3 Tempo', 'Z4 Drempel', 'Z5 Max']
 
-    # Helper voor tellen
     def get_counts(sub_df):
         c = sub_df['Zone'].value_counts().reindex(zone_order, fill_value=0).reset_index()
         c.columns = ['Zone', 'Count']
@@ -245,14 +218,9 @@ def create_zone_pie(df_yr):
     run_counts = get_counts(df_hr[df_hr['Categorie'] == 'Hardlopen'])
 
     fig = go.Figure()
-
-    # Trace 0: Alle
     fig.add_trace(go.Pie(labels=all_counts['Zone'], values=all_counts['Count'], name="Totaal", marker_colors=[color_map[z] for z in all_counts['Zone']], hole=0.5, visible=True))
-    # Trace 1: Fiets
     fig.add_trace(go.Pie(labels=bike_counts['Zone'], values=bike_counts['Count'], name="Fiets", marker_colors=[color_map[z] for z in bike_counts['Zone']], hole=0.5, visible=False))
-    # Trace 2: Zwift
     fig.add_trace(go.Pie(labels=zwift_counts['Zone'], values=zwift_counts['Count'], name="Zwift", marker_colors=[color_map[z] for z in zwift_counts['Zone']], hole=0.5, visible=False))
-    # Trace 3: Run
     fig.add_trace(go.Pie(labels=run_counts['Zone'], values=run_counts['Count'], name="Run", marker_colors=[color_map[z] for z in run_counts['Zone']], hole=0.5, visible=False))
 
     updatemenus = [dict(
@@ -266,8 +234,8 @@ def create_zone_pie(df_yr):
         direction="down", pad={"r": 10, "t": 10}, showactive=True, x=1, xanchor="right", y=1.2, yanchor="top"
     )]
 
-    fig.update_layout(title='❤️ Training Intensiteit', template='plotly_white', updatemenus=updatemenus, margin=dict(t=50,b=20,l=20,r=20), height=350, paper_bgcolor='rgba(0,0,0,0)')
-    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
+    fig.update_layout(title='❤️ Training Intensiteit', template='plotly_white', updatemenus=updatemenus, margin=dict(t=50,b=20,l=10,r=10), height=350, paper_bgcolor='rgba(0,0,0,0)')
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_heatmap(df_yr):
     df_hm = df_yr.copy()
@@ -280,8 +248,16 @@ def create_heatmap(df_yr):
     pivot = pivot.reindex(columns=days_order)
     if pivot.empty: return ""
     fig = go.Figure(data=go.Heatmap(z=pivot.values, x=[nl_days[d] for d in pivot.columns], y=pivot.index, colorscale='Greens', showscale=False))
-    fig.update_layout(title='📅 Trainingsmomenten', template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='Uur van de dag', range=[6, 23]))
-    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
+    
+    # Hier ook fixedrange=True toevoegen voor axis
+    fig.update_layout(
+        title='📅 Trainingsmomenten', template='plotly_white', 
+        margin=dict(t=40,b=20,l=10,r=10), height=300, 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        yaxis=dict(title='Uur van de dag', range=[6, 23], fixedrange=True),
+        xaxis=dict(fixedrange=True)
+    )
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_strength_freq_chart(df_yr):
     df_s = df_yr[df_yr['Categorie'] == 'Krachttraining']
@@ -291,8 +267,14 @@ def create_strength_freq_chart(df_yr):
     fig = go.Figure()
     fig.add_trace(go.Bar(x=months, y=counts, name="Sessies", marker_color=COLORS['strength'], text=counts, textposition='auto'))
     fig.add_shape(type="line", x0=-0.5, y0=8, x1=11.5, y1=8, line=dict(color="gray", width=2, dash="dot"))
-    fig.update_layout(title='🏋️ Kracht Frequentie (Sessies per Maand)', template='plotly_white', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='Aantal Sessies'))
-    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn")}</div>'
+    
+    fig.update_layout(
+        title='🏋️ Kracht Frequentie (Sessies per Maand)', template='plotly_white', 
+        margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', 
+        yaxis=dict(title='Aantal Sessies', fixedrange=True),
+        xaxis=dict(fixedrange=True)
+    )
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_monthly_charts(df_cur, df_prev, year):
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
@@ -301,17 +283,31 @@ def create_monthly_charts(df_cur, df_prev, year):
         return df[mask].groupby(df['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
     prev_total = get_month_data(df_prev, ['Fiets', 'Zwift'])
     cur_zwift = get_month_data(df_cur, ['Zwift']); cur_out = get_month_data(df_cur, ['Fiets'])
+    
     fig_bike = go.Figure()
     fig_bike.add_trace(go.Bar(x=months, y=prev_total, name=f"{year-1}", marker_color=COLORS['ref_gray'], offsetgroup=1))
     fig_bike.add_trace(go.Bar(x=months, y=cur_zwift, name=f"{year} Zwift", marker_color=COLORS['zwift'], offsetgroup=2))
     fig_bike.add_trace(go.Bar(x=months, y=cur_out, name=f"{year} Buiten", marker_color=COLORS['bike_out'], base=cur_zwift, offsetgroup=2))
-    fig_bike.update_layout(title='🚴 Fietsen Totaal (km)', template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
+    
+    fig_bike.update_layout(
+        title='🚴 Fietsen Totaal (km)', template='plotly_white', barmode='group', 
+        margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', 
+        legend=dict(orientation="h", y=1.1),
+        xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True)
+    )
+
     prev_run = get_month_data(df_prev, ['Hardlopen']); cur_run = get_month_data(df_cur, ['Hardlopen'])
     fig_run = go.Figure()
     fig_run.add_trace(go.Bar(x=months, y=prev_run, name=f"{year-1}", marker_color=COLORS['ref_gray']))
     fig_run.add_trace(go.Bar(x=months, y=cur_run, name=f"{year}", marker_color=COLORS['run']))
-    fig_run.update_layout(title='🏃 Hardlopen (km)', template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=20,r=20), height=300, paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
-    return f'<div class="chart-grid"><div class="chart-box full-width">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn")}</div><div class="chart-box full-width">{fig_run.to_html(full_html=False, include_plotlyjs="cdn")}</div></div>'
+    
+    fig_run.update_layout(
+        title='🏃 Hardlopen (km)', template='plotly_white', barmode='group', 
+        margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', 
+        legend=dict(orientation="h", y=1.1),
+        xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True)
+    )
+    return f'<div class="chart-grid"><div class="chart-box full-width">{fig_bike.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box full-width">{fig_run.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
 
 def generate_sport_cards(df_yr, df_prev_comp):
     html = '<div class="sport-grid">'
@@ -380,7 +376,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V53.0 (Interactive Filtering)...")
+    print("🚀 Start V54.0 (Mobile Scroll Fix & Layout)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -439,8 +435,9 @@ def genereer_dashboard():
         
         html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sportoverzicht Jorden</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>
         :root{{--primary:#0f172a;--bg:#f8fafc;--card:#ffffff;--text:#1e293b;--label:#94a3b8}}
-        body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:60px}}
-        .container{{max-width:1200px;margin:0 auto}}
+        * {{box-sizing: border-box;}}
+        body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;padding-bottom:60px; overflow-x: hidden; width: 100%;}}
+        .container{{max-width:1200px;margin:0 auto; padding: 0 5px;}}
         .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}
         .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;cursor:pointer}}
         .hr-blur{{filter:blur(5px);transition:0.3s}}
@@ -469,7 +466,7 @@ def genereer_dashboard():
         .sec-title{{font-size:20px;font-weight:700;margin-bottom:15px}}
         .sec-sub{{font-size:12px;color:var(--label);text-transform:uppercase;font-weight:700;margin:30px 0 10px 0;letter-spacing:1px;border-bottom:1px solid #e2e8f0;padding-bottom:5px}}
         .chart-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:15px;margin-bottom:15px}}
-        .chart-box{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0}}
+        .chart-box{{background:white;padding:15px;border-radius:16px;border:1px solid #e2e8f0; overflow: hidden;}}
         .full-width{{width:100%;box-sizing:border-box}}
         .log-table{{width:100%;border-collapse:collapse;font-size:12px}} .log-table th{{text-align:left;color:var(--label);padding:8px}} .log-table td{{padding:8px;border-top:1px solid #f1f5f9}}
         .history-table{{width:100%; border-collapse:collapse; font-size:13px;}} .history-table th{{text-align:left; color:var(--label); padding:8px; border-bottom:1px solid #e2e8f0;}} .history-table td{{padding:8px; border-bottom:1px solid #f1f5f9;}}
@@ -482,7 +479,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V53.0) gegenereerd!")
+        print("✅ Dashboard (V54.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
