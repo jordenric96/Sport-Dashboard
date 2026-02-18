@@ -12,15 +12,22 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # --- CONFIGURATIE ---
 GOALS = {'bike_out': 3000, 'zwift': 3000, 'run': 350}
 
-# Plotly Config
-PLOT_CONFIG = {'displayModeBar': False, 'staticPlot': False, 'scrollZoom': False, 'responsive': True}
+# Plotly Config: Mobiel vriendelijk (geen scroll-zoom)
+PLOT_CONFIG = {
+    'displayModeBar': False, 
+    'staticPlot': False,     
+    'scrollZoom': False,     
+    'responsive': True
+}
 
-HR_ZONES = {'Z1 Herstel': 135, 'Z2 Duur': 152, 'Z3 Tempo': 168, 'Z4 Drempel': 180, 'Z5 Max': 220}
+HR_ZONES = {
+    'Z1 Herstel': 135, 'Z2 Duur': 152, 'Z3 Tempo': 168, 'Z4 Drempel': 180, 'Z5 Max': 220
+}
 
 COLORS = {
-    'primary': '#0f172a', 'gold': '#d4af37', 'bg': '#f8fafc', # Iets frissere achtergrond
+    'primary': '#0f172a', 'gold': '#d4af37', 'bg': '#f8fafc',
     'card': '#ffffff', 'text': '#334155', 'text_light': '#64748b',
-    'zwift': '#ff6600', 'bike_out': '#0ea5e9', 'run': '#f59e0b', # Iets modernere blauw/oranje tinten
+    'zwift': '#ff6600', 'bike_out': '#0ea5e9', 'run': '#f59e0b', 
     'swim': '#3b82f6', 'padel': '#84cc16', 'walk': '#10b981', 
     'strength': '#8b5cf6', 'default': '#64748b', 'ref_gray': '#cbd5e1',
     'z1': '#a3e635', 'z2': '#facc15', 'z3': '#fb923c', 'z4': '#f87171', 'z5': '#ef4444'
@@ -39,8 +46,10 @@ def solve_dates(date_str):
 
 # --- CATEGORIE LOGICA ---
 def determine_category(row):
-    t = str(row['Activiteitstype']).lower().strip(); n = str(row['Naam']).lower().strip()
-    if any(x in t for x in ['kracht', 'power', 'gym', 'fitness', 'weight']) or any(x in n for x in ['kracht', 'power', 'gym', 'fitness']): return 'Krachttraining'
+    t = str(row['Activiteitstype']).lower().strip()
+    n = str(row['Naam']).lower().strip()
+    if any(x in t for x in ['kracht', 'power', 'gym', 'fitness', 'weight']) or \
+       any(x in n for x in ['kracht', 'power', 'gym', 'fitness']): return 'Krachttraining'
     if 'virtu' in t or 'zwift' in n: return 'Zwift'
     if any(x in t for x in ['fiets', 'ride', 'gravel', 'mtb', 'cycle', 'wieler', 'velomobiel', 'e-bike']): return 'Fiets'
     if any(x in t for x in ['hardloop', 'run', 'jog', 'lopen', 'loop']): return 'Hardlopen'
@@ -80,6 +89,49 @@ def format_diff_html(cur, prev, unit=""):
     arrow = "▲" if diff >= 0 else "▼"
     return f'<span style="color:{color}; font-weight:700; font-size:0.85em; font-family: monospace;">{arrow} {abs(diff):.1f} {unit}</span>'
 
+# --- SPARKLINE GENERATOR ---
+def create_sparkline(df_cat, color):
+    # Mini trendlijn laatste 12 maanden
+    if df_cat.empty: return ""
+    df_cat = df_cat.copy() # Avoid SettingWithCopy
+    df_cat['M'] = df_cat['Datum'].dt.to_period('M')
+    monthly = df_cat.groupby('M')['Afstand_km'].sum()
+    
+    # Laatste 12 maanden berekenen
+    last_12 = [pd.Period(datetime.now(), 'M') - i for i in range(11, -1, -1)]
+    values = [monthly.get(m, 0) for m in last_12]
+    
+    if max(values) == 0: return "" # Geen data om te tonen
+    
+    # SVG Constructie
+    w, h = 120, 35
+    max_val = max(values)
+    points = []
+    for i, val in enumerate(values):
+        x = i * (w / 11)
+        y = h - (val / max_val * (h - 5)) # h-5 om ruimte voor bolletje te houden
+        points.append(f"{x},{y}")
+    
+    polyline = f'<polyline points="{" ".join(points)}" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>'
+    # Bolletje op het einde
+    end_y = points[-1].split(",")[1]
+    end_circle = f'<circle cx="{w}" cy="{end_y}" r="3" fill="{color}" />'
+    
+    # Area fill (optioneel, voor mooi effect)
+    area_points = f"0,{h} " + " ".join(points) + f" {w},{h}"
+    polygon = f'<polygon points="{area_points}" fill="{color}" fill-opacity="0.1" stroke="none" />'
+
+    return f'''
+    <div style="margin-top:12px; border-top:1px solid #f1f5f9; padding-top:8px;">
+        <div style="font-size:9px; color:#94a3b8; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.5px;">Trend (12 mnd)</div>
+        <svg width="100%" height="{h}" viewBox="0 0 {w} {h}" preserveAspectRatio="none" style="overflow:visible;">
+            {polygon}
+            {polyline}
+            {end_circle}
+        </svg>
+    </div>
+    '''
+
 # --- UI GENERATORS ---
 
 def generate_ytd_history(df, current_year):
@@ -103,7 +155,6 @@ def generate_ytd_history(df, current_year):
     return html + "</tbody></table></div>"
 
 def calculate_streaks(df):
-    # (Streak logic unchanged, abbreviated for brevity)
     valid = df.dropna(subset=['Datum']).sort_values('Datum')
     if valid.empty: return {}
     valid['WeekStart'] = valid['Datum'].dt.to_period('W-MON').dt.start_time
@@ -211,10 +262,15 @@ def create_monthly_charts(df_cur, df_prev, year):
     fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_white', barmode='group', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True))
     return f'<div class="chart-grid"><div class="chart-box full-width">{fb.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box full-width">{fr.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
 
-def generate_sport_cards(df_yr, df_prev_comp):
+# --- SPORT CARDS (MET SPARKLINES & HOOGTEMETERS) ---
+def generate_sport_cards(df_yr, df_prev_comp, full_df):
     html = '<div class="sport-grid">'
     cp = df_yr['Categorie'].unique(); co = ['Fiets', 'Zwift', 'Hardlopen', 'Krachttraining', 'Padel', 'Wandelen', 'Zwemmen', 'Overig']
     cats = [c for c in co if c in cp] + [c for c in cp if c not in co]
+    
+    # Check voor hoogtemeters
+    elev_col = next((c for c in df_yr.columns if c.lower() in ['totale stijging', 'elevation gain', 'hoogte', 'elevation']), None)
+
     for cat in cats:
         df_s = df_yr[df_yr['Categorie'] == cat]; df_p = df_prev_comp[df_prev_comp['Categorie'] == cat] if df_prev_comp is not None else pd.DataFrame()
         if df_s.empty: continue
@@ -222,15 +278,45 @@ def generate_sport_cards(df_yr, df_prev_comp):
         n=len(df_s); np=len(df_p); d=df_s['Afstand_km'].sum(); dp=df_p['Afstand_km'].sum() if not df_p.empty else 0
         t=df_s['Beweegtijd_sec'].sum(); tp=df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
         hr=df_s['Hartslag'].mean(); wt=df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
+        
+        # Hoogte
+        elev_html = ""
+        if elev_col and cat in ['Fiets', 'Hardlopen', 'Zwift', 'Wandelen']:
+             try:
+                 e_val = pd.to_numeric(df_s[elev_col].astype(str).str.replace(r'[^0-9.]', ''), errors='coerce').sum()
+                 if e_val > 0: elev_html = f'<div class="stat-row"><span>Hoogte</span><div class="val-group"><strong>⛰️ {e_val:,.0f} m</strong></div></div>'
+             except: pass
+
         spd = f"{(d/(t/3600)):.1f} km/u" if t > 0 and cat not in ['Padel','Krachttraining'] else "-"
         if cat == 'Hardlopen' and d > 0: spd = f"{int((t/d)//60)}:{int((t/d)%60):02d} /km"
         
+        # Gear Badge
+        gear_html = ""
+        if 'Gear' in df_s.columns:
+            top_gear = df_s['Gear'].mode()
+            if not top_gear.empty and str(top_gear[0]) != 'nan' and str(top_gear[0]).strip() != '':
+                 gear_html = f'<div style="font-size:11px; color:#64748b; margin-top:6px; display:flex; align-items:center; gap:4px; opacity:0.9;"><span>👟</span> <span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:150px;">{top_gear[0]}</span></div>'
+
         rows = f"""<div class="stat-row"><span>Sessies</span><div class="val-group"><strong>{n}</strong>{format_diff_html(n,np)}</div></div>
                    <div class="stat-row"><span>Tijd</span><div class="val-group"><strong>{format_time(t)}</strong>{format_diff_html(t/3600,tp/3600,"u")}</div></div>"""
-        if cat not in ['Padel','Krachttraining']: rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp)}</div></div><div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
+        if cat not in ['Padel','Krachttraining']: rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp)}</div></div>{elev_html}<div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
         if cat == 'Zwift' and pd.notna(wt) and wt>0: rows += f'<div class="stat-row"><span>Wattage</span><strong>⚡ {wt:.0f} W</strong></div>'
         if pd.notna(hr): rows += f'<div class="stat-row"><span>Hartslag</span><strong class="hr-blur">❤️ {hr:.0f}</strong></div>'
-        html += f"""<div class="sport-card"><div class="sport-header" style="color:{color}"><div class="icon-circle" style="background:{color}15">{icon}</div><h3>{cat}</h3></div><div class="sport-body">{rows}</div></div>"""
+        
+        # Sparkline
+        sparkline = create_sparkline(full_df[full_df['Categorie'] == cat], color)
+
+        html += f"""<div class="sport-card">
+            <div class="sport-header" style="color:{color}">
+                <div class="icon-circle" style="background:{color}15">{icon}</div>
+                <div style="flex:1; overflow:hidden;">
+                    <h3 style="margin:0; font-size:16px;">{cat}</h3>
+                    {gear_html}
+                </div>
+            </div>
+            <div class="sport-body">{rows}</div>
+            {sparkline}
+        </div>"""
     return html + '</div>'
 
 def generate_hall_of_fame(df):
@@ -276,7 +362,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V56.0 (Premium UI)...")
+    print("🚀 Start V57.0 (Sparklines & Elevation)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Gemiddeld wattage':'Wattage'}
@@ -308,7 +394,7 @@ def genereer_dashboard():
                     {generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️", format_diff_html(df_yr['Beweegtijd_sec'].sum()/3600, df_prev_comp['Beweegtijd_sec'].sum()/3600, "u"))}
                 </div>
                 {generate_ytd_history(df, yr)}
-                <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
+                <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp, df)}
                 <h3 class="sec-sub">Maandelijkse Voortgang</h3>{create_monthly_charts(df_yr, df_prev, yr)}
                 <h3 class="sec-sub">Diepte-analyse</h3>
                 <div class="chart-grid">{create_scatter_plot(df_yr)}{create_zone_pie(df_yr)}</div>
@@ -329,43 +415,21 @@ def genereer_dashboard():
         .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}}
         .lock-btn{{background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:20px;cursor:pointer}}
         .hr-blur{{filter:blur(5px);transition:0.3s}}
-        
-        /* NAVIGATIE STICKY */
         .nav{{display:flex;gap:8px;overflow-x:auto;margin-bottom:20px;padding:10px 0;scrollbar-width:none; position:sticky; top:0; z-index:100; background: linear-gradient(180deg, var(--bg) 80%, rgba(248,250,252,0));}}
         .nav-btn{{flex:0 0 auto;background:white;border:1px solid #e2e8f0;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer; transition:all 0.2s ease; box-shadow:0 1px 2px rgba(0,0,0,0.05);}}
         .nav-btn:hover{{transform:translateY(-1px); box-shadow:0 4px 6px rgba(0,0,0,0.05); color:var(--primary);}}
         .nav-btn.active{{background:var(--primary);color:white;border-color:var(--primary); box-shadow:0 4px 10px rgba(15,23,42,0.3);}}
-        
-        /* CARDS & HOVER */
         .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:15px; margin-bottom:25px;}}
         .kpi-grid{{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}}
         .sport-grid{{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}}
         .hof-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
-
-        .kpi-card, .sport-card, .hof-card, .chart-box, .goals-section, .streaks-section {{
-            background:white; padding:18px; border-radius:16px; border:1px solid #f1f5f9;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.02);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden; width:100%;
-        }}
-        
-        /* HOVER EFFECT - THE PREMIUM FEEL */
-        .kpi-card:hover, .sport-card:hover, .hof-card:hover {{
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
-            border-color: #e2e8f0;
-        }}
-
-        /* TYPOGRAFIE */
+        .kpi-card, .sport-card, .hof-card, .chart-box, .goals-section, .streaks-section {{background:white; padding:18px; border-radius:16px; border:1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.02); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; width:100%;}}
+        .kpi-card:hover, .sport-card:hover, .hof-card:hover {{transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025); border-color: #e2e8f0;}}
         .box-title, .sec-lbl {{font-size:11px;color:var(--label);text-transform:uppercase;margin-bottom:12px;letter-spacing:0.5px;font-weight:700}}
         .sec-title {{font-size:20px;font-weight:800;letter-spacing:-0.5px;margin-bottom:15px;color:var(--primary)}}
         .sec-sub {{font-size:12px;color:var(--label);text-transform:uppercase;font-weight:700;margin:30px 0 15px 0;letter-spacing:1px;border-bottom:2px solid #f1f5f9;padding-bottom:8px; display:inline-block;}}
-        
-        /* TABULAR NUMS (Rechte cijfers) */
         body {{ font-variant-numeric: tabular-nums; }}
-        
-        /* SPECIFIEKE ELEMENTEN */
         .stats-box-container{{display:flex;gap:15px;margin-bottom:25px;flex-wrap:wrap}}
         .goal-item{{margin-bottom:12px}} .goal-label{{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:5px}}
         .goal-bar{{background:#f1f5f9;height:8px;border-radius:4px;overflow:hidden}} .goal-bar div{{height:100%;border-radius:4px}}
@@ -374,10 +438,8 @@ def genereer_dashboard():
         .icon-circle{{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}}
         .stat-row{{display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;color:#64748b; align-items:center;}}
         .stat-row strong{{color:var(--text); font-weight:600}} .val-group{{display:flex;gap:8px;align-items:center}}
-        
         .log-table{{width:100%;border-collapse:collapse;font-size:13px}} .log-table th{{text-align:left;color:var(--label);padding:10px;font-weight:600;border-bottom:1px solid #f1f5f9}} .log-table td{{padding:10px;border-bottom:1px solid #f8fafc;}}
         .history-table{{width:100%;border-collapse:collapse;font-size:13px}} .history-table th{{text-align:left;color:var(--label);padding:10px;border-bottom:1px solid #e2e8f0}} .history-table td{{padding:8px 10px;border-bottom:1px solid #f8fafc}}
-        
         </style></head><body><div class="container">
         <div class="header"><h1 style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #0f172a, #334155); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         {stats_box}<div class="nav">{nav}</div>{sects}</div>
@@ -387,7 +449,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V56.0) gegenereerd!")
+        print("✅ Dashboard (V57.0) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
