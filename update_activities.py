@@ -12,10 +12,10 @@ AUTH_URL = "https://www.strava.com/oauth/token"
 ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 
-# --- ZELF GEDEFINIEERDE UITRUSTING (GEAR) ---
-# OPMERKING: Fietsen staan hier niet meer in, die worden nu slim op datum bepaald!
+# --- ZELF GEDEFINIEERDE UITRUSTING (SCHOENEN) ---
+# OPMERKING: Fietsen worden automatisch via datum bepaald. Vul hier je schoenennamen in:
 MANUAL_GEAR_MAP = {
-    'g20191215': 'Schoenen 1 (vul naam in)',       
+    'g20191215': 'Adidas Adistar',       
     'g28340688': 'Schoenen 2 (vul naam in)',       
     'g20403195': 'Schoenen 3 (vul naam in)',       
     'g13828248': 'Schoenen 4 (vul naam in)'        
@@ -70,13 +70,12 @@ def process_data():
         dt = a['start_date_local'].replace('T', ' ').replace('Z', '')
         sport_type = translate_type(a['type'])
         
-        # --- GEAR VERTALING (Basis) ---
+        # --- GEAR VERTALING (Basis voor schoenen) ---
         gear_id = a.get('gear_id')
         gear_name = MANUAL_GEAR_MAP.get(gear_id, gear_id) if gear_id else ""
         
-        # --- SLIMME DATUM-FIETS OVERRIDE ---
-        # Als de activiteit een buiten-fietsrit is, negeren we Strava en gebruiken we de datum!
-        if sport_type == 'Fietsrit':
+        # --- SLIMME DATUM-FIETS OVERRIDE (Buiten + Zwift) ---
+        if sport_type in ['Fietsrit', 'Virtuele fietsrit']:
             if dt < "2025-05-09":
                 gear_name = "Proracer"
             else:
