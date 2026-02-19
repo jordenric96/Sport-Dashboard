@@ -8,6 +8,7 @@ CLIENT_ID = os.environ.get('STRAVA_CLIENT_ID')
 CLIENT_SECRET = os.environ.get('STRAVA_CLIENT_SECRET')
 REFRESH_TOKEN = os.environ.get('STRAVA_REFRESH_TOKEN')
 
+AUTH_URL = "https://www.oauth/token" # Fix voor Strava API
 AUTH_URL = "https://www.strava.com/oauth/token"
 ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ATHLETE_URL = "https://www.strava.com/api/v3/athlete"
@@ -29,11 +30,15 @@ def get_gear_map(token):
     try:
         r = requests.get(ATHLETE_URL, headers=headers)
         data = r.json()
+        
+        # DEBUG: Laat zien of Strava de uitrusting meestuurt in de logs
+        print(f"🔍 Strava profiel sleutels ontvangen: {list(data.keys())}")
+        
         for bike in data.get('bikes', []): gear_map[bike['id']] = bike['name']
         for shoe in data.get('shoes', []): gear_map[shoe['id']] = shoe['name']
         print(f"✅ Materiaal lijst opgehaald: {len(gear_map)} items gevonden.")
-    except:
-        print("⚠️ Kon materiaal namen niet ophalen, we gebruiken ID's.")
+    except Exception as e:
+        print(f"⚠️ Kon materiaal namen niet ophalen: {e}")
     return gear_map
 
 def translate_type(strava_type):
@@ -67,6 +72,9 @@ def process_data():
         gear_id = a.get('gear_id')
         gear_name = gear_map.get(gear_id, gear_id) if gear_id else "" # Vertaal ID naar Naam
         
+        # Calorieën: Pak 'calories'. Als die er niet is, pak 'kilojoules' (voor fietsritten).
+        cal = a.get('calories', a.get('kilojoules', 0))
+        
         clean_data.append({
             'Datum van activiteit': dt,
             'Naam activiteit': a['name'],
@@ -75,13 +83,14 @@ def process_data():
             'Beweegtijd': a['moving_time'],
             'Gemiddelde snelheid': a['average_speed'] * 3.6,
             'Gemiddelde hartslag': a.get('average_heartrate', ''),
-            'Gemiddeld wattage': a.get('average_watts', ''), # WATTAGE TOEGEVOEGD
-            'Uitrusting voor activiteit': gear_name
+            'Gemiddeld wattage': a.get('average_watts', ''),
+            'Uitrusting voor activiteit': gear_name,
+            'Calorieën': cal # NIEUW: Calorieën toegevoegd!
         })
 
     df = pd.DataFrame(clean_data)
     df.to_csv('activities.csv', index=False)
-    print(f"💾 Klaar! {len(df)} activiteiten met namen en wattages opgeslagen.")
+    print(f"💾 Klaar! {len(df)} activiteiten opgeslagen (inclusief calorieën).")
 
 if __name__ == "__main__":
     if not CLIENT_ID: print("❌ Geen API keys.")
