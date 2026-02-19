@@ -13,12 +13,13 @@ ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 
 # --- ZELF GEDEFINIEERDE UITRUSTING (GEAR) ---
-# Vervang de 'b...' of 'g...' codes door jouw eigen codes uit je activiteiten!
 MANUAL_GEAR_MAP = {
-    'b1234567': 'Merida Scultura',
-    'b7654321': 'Zwift Fiets',
-    'g9876543': 'Nike Pegasus',
-    'g1122334': 'Asics Trail'
+    'b16021840': 'Mijn Hoofdfiets',  # Laatst: 2026-02-08 (Buitenrit 100km)
+    'b00000000': 'Mijn Andere Fiets',# VUL HIER DE CODE VAN JE 2E FIETS IN ALS JE DIE VINDT
+    'g20191215': 'Schoenen 1',       # Laatst: 2026-02-15 (Ochtendloop)
+    'g28340688': 'Schoenen 2',       # Laatst: 2026-01-18 (Halve marathon 21km)
+    'g20403195': 'Schoenen 3',       # Laatst: 2026-01-10 (Wandelen 16km)
+    'g13828248': 'Schoenen 4'        # Laatst: 2025-12-27 (Wandelen/Lopen)
 }
 
 def get_access_token():
@@ -39,7 +40,7 @@ def process_data():
     token = get_access_token()
     headers = {'Authorization': f"Bearer {token}"}
     
-    # Lees de oude CSV in om te zien welke calorieën we al hebben (bespaart API calls)
+    # 1. Lees de oude CSV in om te zien welke calorieën we al hebben (bespaart API calls)
     existing_cals = {}
     if os.path.exists('activities.csv'):
         try:
@@ -72,16 +73,16 @@ def process_data():
         
         # --- GEAR VERTALING ---
         gear_id = a.get('gear_id')
-        # Hij zoekt in jouw mapje. Als hij hem niet vindt, gebruikt hij de originele rare code.
         gear_name = MANUAL_GEAR_MAP.get(gear_id, gear_id) if gear_id else ""
         
-        # --- CALORIEËN BEREKENING ---
-        cal = existing_cals.get(dt, 0) # Check oude CSV
+        # --- CALORIEËN OPHALEN VIA STRAVA ---
+        cal = existing_cals.get(dt, 0) # Kijk of we hem al wisten van gisteren
         
         if cal == 0:
-            cal = a.get('calories', a.get('kilojoules', 0)) # Check basis Strava data
+            cal = a.get('calories', a.get('kilojoules', 0)) # Soms geeft Strava het al direct (bijv. Zwift/Fietsen)
             
-        if cal == 0 and api_calls < 80: # Haal details op indien nodig (max 80 keer)
+        # Haal het detailrecord op bij Strava als we de calorieën nog niet weten
+        if cal == 0 and api_calls < 80: 
             act_id = a['id']
             try:
                 res = requests.get(f"{ACTIVITY_DETAIL_URL}/{act_id}", headers=headers)
@@ -89,7 +90,7 @@ def process_data():
                     detail = res.json()
                     cal = detail.get('calories', 0)
                     api_calls += 1
-                    time.sleep(0.5) 
+                    time.sleep(0.5) # Even pauzeren voor Strava limieten
                     print(f"   🔍 Detail opgehaald voor {sport_type} op {dt} ({cal} kcal)")
             except:
                 pass
