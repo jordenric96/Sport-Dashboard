@@ -16,7 +16,7 @@ ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 # OPMERKING: Fietsen worden automatisch via datum bepaald. Vul hier je schoenennamen in:
 MANUAL_GEAR_MAP = {
     'g20191215': 'Adidas Adistar',       
-    'g28340688': 'Schoenen 2 (vul naam in)',       
+    'g28340688': 'New Balance Hierro V9',       
     'g20403195': 'Schoenen 3 (vul naam in)',       
     'g13828248': 'Schoenen 4 (vul naam in)'        
 }
