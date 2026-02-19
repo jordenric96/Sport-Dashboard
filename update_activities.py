@@ -13,13 +13,12 @@ ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 
 # --- ZELF GEDEFINIEERDE UITRUSTING (GEAR) ---
+# OPMERKING: Fietsen staan hier niet meer in, die worden nu slim op datum bepaald!
 MANUAL_GEAR_MAP = {
-    'b16021840': 'Mijn Hoofdfiets',  # Laatst: 2026-02-08 (Buitenrit 100km)
-    'b00000000': 'Mijn Andere Fiets',# VUL HIER DE CODE VAN JE 2E FIETS IN ALS JE DIE VINDT
-    'g20191215': 'Schoenen 1',       # Laatst: 2026-02-15 (Ochtendloop)
-    'g28340688': 'Schoenen 2',       # Laatst: 2026-01-18 (Halve marathon 21km)
-    'g20403195': 'Schoenen 3',       # Laatst: 2026-01-10 (Wandelen 16km)
-    'g13828248': 'Schoenen 4'        # Laatst: 2025-12-27 (Wandelen/Lopen)
+    'g20191215': 'Schoenen 1 (vul naam in)',       
+    'g28340688': 'Schoenen 2 (vul naam in)',       
+    'g20403195': 'Schoenen 3 (vul naam in)',       
+    'g13828248': 'Schoenen 4 (vul naam in)'        
 }
 
 def get_access_token():
@@ -40,7 +39,7 @@ def process_data():
     token = get_access_token()
     headers = {'Authorization': f"Bearer {token}"}
     
-    # 1. Lees de oude CSV in om te zien welke calorieën we al hebben (bespaart API calls)
+    # 1. Lees de oude CSV in om API requests voor calorieën te besparen
     existing_cals = {}
     if os.path.exists('activities.csv'):
         try:
@@ -71,17 +70,24 @@ def process_data():
         dt = a['start_date_local'].replace('T', ' ').replace('Z', '')
         sport_type = translate_type(a['type'])
         
-        # --- GEAR VERTALING ---
+        # --- GEAR VERTALING (Basis) ---
         gear_id = a.get('gear_id')
         gear_name = MANUAL_GEAR_MAP.get(gear_id, gear_id) if gear_id else ""
         
+        # --- SLIMME DATUM-FIETS OVERRIDE ---
+        # Als de activiteit een buiten-fietsrit is, negeren we Strava en gebruiken we de datum!
+        if sport_type == 'Fietsrit':
+            if dt < "2025-05-09":
+                gear_name = "Proracer"
+            else:
+                gear_name = "Merida Scultura 5000"
+                
         # --- CALORIEËN OPHALEN VIA STRAVA ---
-        cal = existing_cals.get(dt, 0) # Kijk of we hem al wisten van gisteren
+        cal = existing_cals.get(dt, 0)
         
         if cal == 0:
-            cal = a.get('calories', a.get('kilojoules', 0)) # Soms geeft Strava het al direct (bijv. Zwift/Fietsen)
+            cal = a.get('calories', a.get('kilojoules', 0))
             
-        # Haal het detailrecord op bij Strava als we de calorieën nog niet weten
         if cal == 0 and api_calls < 80: 
             act_id = a['id']
             try:
@@ -90,7 +96,7 @@ def process_data():
                     detail = res.json()
                     cal = detail.get('calories', 0)
                     api_calls += 1
-                    time.sleep(0.5) # Even pauzeren voor Strava limieten
+                    time.sleep(0.5)
                     print(f"   🔍 Detail opgehaald voor {sport_type} op {dt} ({cal} kcal)")
             except:
                 pass
