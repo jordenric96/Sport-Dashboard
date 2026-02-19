@@ -1,10 +1,9 @@
 name: Update Strava Data
 
 on:
-  on:
   schedule:
-    - cron: '*/10 * * * *' # Draait elke 10 minuten (ongeveer)
-  workflow_dispatch:       # Handmatige knop blijft werken
+    - cron: '*/30 * * * *'  # Draait elke 10 minuten
+  workflow_dispatch:       # Handmatige knop in het Actions-tabblad
 
 permissions:
   contents: write
@@ -18,9 +17,10 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
+        cache: 'pip' # Versnelt de installatie bij volgende runs
 
     - name: Install dependencies
       run: |
@@ -40,6 +40,8 @@ jobs:
       run: |
         git config --global user.name "GitHub Action Bot"
         git config --global user.email "actions@github.com"
+        # We voegen de bestanden toe die je script genereert
         git add activities.csv dashboard.html manifest.json
-        git commit -m "Automated update" || echo "⚠️ Geen wijzigingen om op te slaan."
+        # Alleen committen als er daadwerkelijk iets is veranderd
+        git commit -m "Automated update: $(date)" || echo "⚠️ Geen wijzigingen om op te slaan."
         git push || echo "⚠️ Niets om te pushen."
