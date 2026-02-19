@@ -258,56 +258,56 @@ Datum van activiteit,Naam activiteit,Activiteitstype,Afstand,Beweegtijd,Gemiddel
 2024-12-26 19:43:39,Padel,Training,0.0,6957,0.0,132.3,,,1346.0
 2024-12-23 19:14:40,Zwift - Race: Stage 5: Fresh Outta 24 - Coastal Crown Loop (E) on Coastal Crown Loop in Watopia,Virtuele fietsrit,23.7464,2919,29.286,174.6,192.3,Proracer,561.3
 2024-12-21 20:09:59,Zwift - Group Ride: ZSUN Saturday Social Ride (D) on R.G.V. in France,Virtuele fietsrit,25.397599999999997,2810,32.5368,159.4,151.4,Proracer,425.4
-2024-12-17 19:50:33,Avondtraining,Training,0.0,7125,0.0,129.8,,,0.0
-2024-12-15 11:09:18,Middagloop,Hardlopen,5.5563,2166,9.234,179.5,,Adidas Adistar,0.0
-2024-12-11 19:47:52,Avondtraining,Training,0.0,6467,0.0,131.5,,,0.0
-2024-12-09 13:07:28,Namiddagloop,Hardlopen,4.723199999999999,1904,8.9316,171.5,,Adidas Adistar,0.0
-2024-12-04 19:41:04,Avondtraining,Training,0.0,7299,0.0,146.7,,,0.0
-2024-12-02 15:43:47,Namiddagloop,Hardlopen,4.2743,1772,8.6832,172.4,,Adidas Adistar,0.0
-2024-11-25 19:18:18,Avondloop,Hardlopen,3.9876,1787,8.0316,167.0,,Adidas Adistar,0.0
-2024-11-23 19:20:37,Avondloop,Hardlopen,4.2493,1782,8.586,165.3,,New Balance Hierro V7,0.0
-2024-11-19 19:04:57,🏃‍♂️🏃‍♂️,Hardlopen,3.9122,1673,8.4168,159.9,,New Balance Hierro V7,0.0
-2024-11-15 09:36:39,Ninglinspo 🏞,Wandelen,6.5504,6453,3.654,119.2,,Meindl,0.0
-2024-11-14 12:48:33,Middagloop,Hardlopen,4.0759,1713,8.564400000000001,165.4,,Adidas Adistar,0.0
-2024-11-10 19:49:02,Padel 🎾,Training,0.0,7578,0.0,148.8,,,0.0
-2024-11-07 19:52:17,Avondloop,Hardlopen,4.046,1701,8.564400000000001,168.4,,Adidas Adistar,0.0
-2024-11-05 18:30:36,🎾🎾,Training,0.4638,860,1.9404000000000001,147.5,,,0.0
-2024-10-31 19:45:40,🥎,Training,2.7683,5958,1.6740000000000002,125.6,,,0.0
-2024-10-30 19:22:30,Avondloop,Hardlopen,3.8299000000000003,1592,8.6616,165.3,,Adidas Adistar,0.0
-2024-10-28 19:54:27,Avondloop,Hardlopen,3.7062,1617,8.251199999999999,167.1,,New Balance Hierro V7,0.0
-2024-10-23 19:11:37,Avondloop,Hardlopen,3.4314,1511,8.1756,163.7,,New Balance Hierro V7,0.0
-2024-10-21 19:00:14,Avondloop,Hardlopen,3.2388000000000003,1418,8.2224,163.7,,New Balance Hierro V7,0.0
-2024-10-16 20:01:34,Padel,Training,1.6382,3389,1.7388,153.1,,,0.0
-2024-10-14 16:04:36,Namiddagloop,Hardlopen,3.1736999999999997,1414,8.0784,151.4,,New Balance Hierro V7,0.0
-2024-10-12 16:31:27,Namiddagloop,Hardlopen,3.192,1428,8.046,163.3,,New Balance Hierro V7,0.0
-2024-10-10 19:14:02,Avondloop,Hardlopen,2.9772,1277,8.3916,160.9,,New Balance Hierro V7,0.0
-2024-10-08 20:13:19,Avondloop,Hardlopen,2.5809,1176,7.901999999999999,156.1,,New Balance Hierro V7,0.0
-2024-10-02 18:47:21,Avondloop,Hardlopen,2.8510999999999997,1227,8.3664,163.0,,New Balance Hierro V7,0.0
-2024-09-14 10:46:24,Ochtendtraining,Training,0.0,7333,0.0,174.2,,,0.0
-2024-09-06 21:31:09,Nachttraining,Training,0.0,6242,0.0,157.7,,,0.0
-2024-09-03 21:35:53,🥎🥎,Training,0.0,6010,0.0,169.6,,,0.0
-2024-09-02 13:59:17,Namiddagloop,Hardlopen,3.1475,1410,8.035200000000001,173.4,,New Balance Hierro V7,0.0
-2024-08-29 21:05:36,🎾,Training,0.0,4967,0.0,146.5,,,0.0
-2024-08-27 21:03:02,🥎🥎,Training,0.0,6760,0.0,151.6,,,0.0
-2024-08-22 21:04:45,🎾,Training,0.0,6294,0.0,142.1,,,0.0
-2024-08-20 21:07:05,🥎🥎,Training,0.0,6552,0.0,162.9,,,0.0
-2024-08-19 15:33:58,🥎🥎,Training,0.0,3351,0.0,146.9,,,0.0
-2024-08-16 19:56:29,🎾🎾,Training,0.0,5755,0.0,153.3,,,0.0
-2024-08-12 21:37:15,🎾,Training,0.0,5717,0.0,153.7,,,0.0
-2024-08-09 21:21:16,🥎🥎,Training,0.0,6469,0.0,148.8,,,0.0
-2024-08-05 22:28:59,🥎🥎,Training,0.0,5531,0.0,150.1,,,0.0
-2024-07-22 19:24:46,Padel 🥎,Training,0.0,5934,0.0,151.8,,,0.0
+2024-12-17 19:50:33,Avondtraining,Training,0.0,7125,0.0,129.8,,,1344.0
+2024-12-15 11:09:18,Middagloop,Hardlopen,5.5563,2166,9.234,179.5,,Adidas Adistar,645.0
+2024-12-11 19:47:52,Avondtraining,Training,0.0,6467,0.0,131.5,,,1255.0
+2024-12-09 13:07:28,Namiddagloop,Hardlopen,4.723199999999999,1904,8.9316,171.5,,Adidas Adistar,525.0
+2024-12-04 19:41:04,Avondtraining,Training,0.0,7299,0.0,146.7,,,1599.0
+2024-12-02 15:43:47,Namiddagloop,Hardlopen,4.2743,1772,8.6832,172.4,,Adidas Adistar,492.0
+2024-11-25 19:18:18,Avondloop,Hardlopen,3.9876,1787,8.0316,167.0,,Adidas Adistar,469.0
+2024-11-23 19:20:37,Avondloop,Hardlopen,4.2493,1782,8.586,165.3,,New Balance Hierro V7,468.0
+2024-11-19 19:04:57,🏃‍♂️🏃‍♂️,Hardlopen,3.9122,1673,8.4168,159.9,,New Balance Hierro V7,426.0
+2024-11-15 09:36:39,Ninglinspo 🏞,Wandelen,6.5504,6453,3.654,119.2,,Meindl,1213.0
+2024-11-14 12:48:33,Middagloop,Hardlopen,4.0759,1713,8.564400000000001,165.4,,Adidas Adistar,456.0
+2024-11-10 19:49:02,Padel 🎾,Training,0.0,7578,0.0,148.8,,,1693.0
+2024-11-07 19:52:17,Avondloop,Hardlopen,4.046,1701,8.564400000000001,168.4,,Adidas Adistar,461.0
+2024-11-05 18:30:36,🎾🎾,Training,0.4638,860,1.9404000000000001,147.5,,,455.0
+2024-10-31 19:45:40,🥎,Training,2.7683,5958,1.6740000000000002,125.6,,,849.0
+2024-10-30 19:22:30,Avondloop,Hardlopen,3.8299000000000003,1592,8.6616,165.3,,Adidas Adistar,340.0
+2024-10-28 19:54:27,Avondloop,Hardlopen,3.7062,1617,8.251199999999999,167.1,,New Balance Hierro V7,318.0
+2024-10-23 19:11:37,Avondloop,Hardlopen,3.4314,1511,8.1756,163.7,,New Balance Hierro V7,344.0
+2024-10-21 19:00:14,Avondloop,Hardlopen,3.2388000000000003,1418,8.2224,163.7,,New Balance Hierro V7,284.0
+2024-10-16 20:01:34,Padel,Training,1.6382,3389,1.7388,153.1,,,769.0
+2024-10-14 16:04:36,Namiddagloop,Hardlopen,3.1736999999999997,1414,8.0784,151.4,,New Balance Hierro V7,281.0
+2024-10-12 16:31:27,Namiddagloop,Hardlopen,3.192,1428,8.046,163.3,,New Balance Hierro V7,302.0
+2024-10-10 19:14:02,Avondloop,Hardlopen,2.9772,1277,8.3916,160.9,,New Balance Hierro V7,260.0
+2024-10-08 20:13:19,Avondloop,Hardlopen,2.5809,1176,7.901999999999999,156.1,,New Balance Hierro V7,234.0
+2024-10-02 18:47:21,Avondloop,Hardlopen,2.8510999999999997,1227,8.3664,163.0,,New Balance Hierro V7,179.0
+2024-09-14 10:46:24,Ochtendtraining,Training,0.0,7333,0.0,174.2,,,1416.0
+2024-09-06 21:31:09,Nachttraining,Training,0.0,6242,0.0,157.7,,,1509.0
+2024-09-03 21:35:53,🥎🥎,Training,0.0,6010,0.0,169.6,,,1601.0
+2024-09-02 13:59:17,Namiddagloop,Hardlopen,3.1475,1410,8.035200000000001,173.4,,New Balance Hierro V7,393.0
+2024-08-29 21:05:36,🎾,Training,0.0,4967,0.0,146.5,,,1074.0
+2024-08-27 21:03:02,🥎🥎,Training,0.0,6760,0.0,151.6,,,1558.0
+2024-08-22 21:04:45,🎾,Training,0.0,6294,0.0,142.1,,,1332.0
+2024-08-20 21:07:05,🥎🥎,Training,0.0,6552,0.0,162.9,,,1606.0
+2024-08-19 15:33:58,🥎🥎,Training,0.0,3351,0.0,146.9,,,751.0
+2024-08-16 19:56:29,🎾🎾,Training,0.0,5755,0.0,153.3,,,1357.0
+2024-08-12 21:37:15,🎾,Training,0.0,5717,0.0,153.7,,,1350.0
+2024-08-09 21:21:16,🥎🥎,Training,0.0,6469,0.0,148.8,,,1460.0
+2024-08-05 22:28:59,🥎🥎,Training,0.0,5531,0.0,150.1,,,1261.0
+2024-07-22 19:24:46,Padel 🥎,Training,0.0,5934,0.0,151.8,,,1289.0
 2024-07-12 15:41:56,Zwift - Basics in Watopia,Virtuele fietsrit,9.5212,1868,18.349200000000003,157.6,134.9,Proracer,252.0
 2024-07-08 12:39:30,Zwift - The Beginning in Makuri Islands,Virtuele fietsrit,13.6041,2011,24.354,160.5,133.2,Proracer,267.9
-2024-05-06 11:36:52,Middagloop,Hardlopen,2.2641999999999998,1080,7.5456,155.1,,New Balance Hierro V7,0.0
-2024-05-02 12:24:47,Middagloop,Hardlopen,5.6678999999999995,2553,7.992000000000001,160.0,,New Balance Hierro V7,0.0
-2024-04-29 20:06:47,Avondloop,Hardlopen,4.3573,1711,9.1692,177.2,,New Balance Hierro V7,0.0
-2024-04-24 19:34:39,Avondloop,Hardlopen,3.092,1413,7.876800000000001,168.0,,New Balance Hierro V7,0.0
-2024-04-23 20:53:54,Avondloop,Hardlopen,4.3623,1884,8.334,181.2,,New Balance Hierro V7,0.0
-2024-04-16 19:43:28,Avondloop,Hardlopen,3.09,1454,7.65,170.5,,New Balance Hierro V7,0.0
-2024-04-11 20:12:44,Avondloop,Hardlopen,2.6477,1193,7.9883999999999995,166.0,,New Balance Hierro V7,0.0
-2024-04-08 15:12:54,Namiddagloop,Hardlopen,2.9476,1430,7.4196,172.8,,New Balance Hierro V7,0.0
-2024-04-05 12:58:12,Middagloop,Hardlopen,2.2542,1185,6.8472,165.0,,New Balance Hierro V7,0.0
+2024-05-06 11:36:52,Middagloop,Hardlopen,2.2641999999999998,1080,7.5456,155.1,,New Balance Hierro V7,278.0
+2024-05-02 12:24:47,Middagloop,Hardlopen,5.6678999999999995,2553,7.992000000000001,160.0,,New Balance Hierro V7,640.0
+2024-04-29 20:06:47,Avondloop,Hardlopen,4.3573,1711,9.1692,177.2,,New Balance Hierro V7,497.0
+2024-04-24 19:34:39,Avondloop,Hardlopen,3.092,1413,7.876800000000001,168.0,,New Balance Hierro V7,380.0
+2024-04-23 20:53:54,Avondloop,Hardlopen,4.3623,1884,8.334,181.2,,New Balance Hierro V7,571.0
+2024-04-16 19:43:28,Avondloop,Hardlopen,3.09,1454,7.65,170.5,,New Balance Hierro V7,380.0
+2024-04-11 20:12:44,Avondloop,Hardlopen,2.6477,1193,7.9883999999999995,166.0,,New Balance Hierro V7,310.0
+2024-04-08 15:12:54,Namiddagloop,Hardlopen,2.9476,1430,7.4196,172.8,,New Balance Hierro V7,385.0
+2024-04-05 12:58:12,Middagloop,Hardlopen,2.2542,1185,6.8472,165.0,,New Balance Hierro V7,309.0
 2023-12-05 19:43:30,Zwift - Race: Zwift Crit Racing Club - The Fan Flats (D) on The Fan Flats in Richmond,Virtuele fietsrit,24.823400000000003,2653,33.6852,,198.0,Proracer,525.3
 2023-11-29 18:36:42,Zwift - No Nonsense in Watopia,Virtuele fietsrit,16.8972,2210,27.5256,154.3,143.9,Proracer,318.0
 2023-11-28 18:12:22,Zwift - Slow Motion in Watopia,Virtuele fietsrit,15.4705,1990,27.9864,,133.9,Proracer,266.5
@@ -316,52 +316,52 @@ Datum van activiteit,Naam activiteit,Activiteitstype,Afstand,Beweegtijd,Gemiddel
 2023-11-16 17:44:08,Zwift - The Beginning in London,Virtuele fietsrit,9.844,2013,17.604,148.5,135.0,Proracer,271.7
 2023-11-09 13:11:37,Zwift - Ocean Lava Cliffside Loop in Watopia,Virtuele fietsrit,19.7219,2435,29.1564,,170.7,Proracer,415.6
 2023-11-07 19:13:27,Zwift - Race: Stage 1: Neokyo Nights - Sleepless City (D) on Sleepless City in Makuri Islands,Virtuele fietsrit,19.7655,2117,33.6132,177.1,173.7,Proracer,367.7
-2023-11-07 19:09:39,Avondrit,Virtuele fietsrit,0.0,2546,0.0,170.2,,Proracer,0.0
+2023-11-07 19:09:39,Avondrit,Virtuele fietsrit,0.0,2546,0.0,170.2,,Proracer,695.0
 2023-11-05 08:53:57,Beetje losrijden,Virtuele fietsrit,14.6004,2299,22.8636,147.9,108.6,Proracer,249.6
 2023-11-02 12:46:20,Zwift - Big Gear SST - 2 x 6 in Makuri Islands,Virtuele fietsrit,8.196200000000001,1847,15.976799999999999,162.2,143.4,Proracer,264.9
 2023-10-27 11:14:00,Zwift - Ramp Test in Richmond,Virtuele fietsrit,10.398,1489,25.1388,,117.3,Proracer,174.6
 2023-10-25 18:45:18,Zwift - Race: Guayaba Race con PETA-Z (D) on London Loop Reverse in London,Virtuele fietsrit,14.9443,2049,26.2548,181.5,186.2,Proracer,381.5
 2023-10-23 19:20:01,Zwift - Group Ride: ZZRC Spin Out Sub 2 (D) on Ocean Lava Cliffside Loop in Watopia,Virtuele fietsrit,28.7652,3608,28.7028,171.8,168.6,Proracer,608.4
 2023-09-28 18:43:41,Zwift - Race: Zwift Crit Club (D) on Twilight Harbor in Makuri Islands,Virtuele fietsrit,21.1319,2175,34.977599999999995,177.5,185.1,Proracer,402.7
-2023-09-28 18:40:52,Avondrit,Virtuele fietsrit,0.0,2360,0.0,173.6,,Proracer,0.0
+2023-09-28 18:40:52,Avondrit,Virtuele fietsrit,0.0,2360,0.0,173.6,,Proracer,683.0
 2023-09-25 16:13:28,Zwift - Race: Stage 4: Get Rolling - R.G.V. (D) on R.G.V. in France,Virtuele fietsrit,25.3208,2693,33.8472,180.2,181.4,Proracer,488.4
 2023-09-21 19:13:27,Zwift - Race: Stage 3: Get Rolling - London Classique (D) on Classique in London,Virtuele fietsrit,17.3493,1812,34.47,174.2,186.3,Proracer,337.6
 2023-09-14 12:13:35,Zwift - Race: Stage 2: Get Rolling - Two Villages Loop (D) on Two Village Loop in Makuri Islands,Virtuele fietsrit,13.5937,1704,28.7208,180.6,181.0,Proracer,308.4
 2023-09-06 12:14:29,Zwift - Race: Stage 1: Get Rolling - Watopia Flat Reverse (E) on Flat Route Reverse in Watopia,Virtuele fietsrit,10.675600000000001,1220,31.5,176.5,184.0,Proracer,224.5
-2023-09-04 18:08:16,Avondloop,Hardlopen,4.2759,2289,6.7248,149.6,,New Balance Hierro V7,0.0
-2023-09-01 12:44:40,Middagloop,Hardlopen,4.3366999999999996,1943,8.035200000000001,172.6,,New Balance Hierro V7,0.0
-2023-08-30 19:09:40,Avondloop,Hardlopen,4.8481000000000005,2347,7.4376,158.6,,New Balance Hierro V7,0.0
-2023-08-28 18:21:40,Avondloop,Hardlopen,4.1114,2226,6.6492,149.7,,New Balance Hierro V7,0.0
-2023-08-23 12:36:18,Middagloop,Hardlopen,4.3925,2230,7.092,164.3,,New Balance Hierro V7,0.0
-2023-08-21 19:20:39,Avondloop,Hardlopen,3.4898000000000002,2050,6.1272,147.0,,New Balance Hierro V7,0.0
-2023-08-18 15:17:27,Namiddagloop,Hardlopen,3.9078000000000004,2400,5.860799999999999,151.7,,New Balance Hierro V7,0.0
-2023-08-11 20:30:42,Dodentocht 2023 👊👊,Wandelen,97.4617,63360,5.5368,149.5,,New Balance Hierro V7,0.0
-2023-07-30 14:54:19,Namiddagwandeling,Wandelen,3.2759,1974,5.976,121.9,,New Balance Hierro V7,0.0
-2023-07-27 12:50:39,Nog 15 dagen tot de Dodentocht 🤞,Wandelen,5.1829,2959,6.3072,129.3,,New Balance Hierro V7,0.0
-2023-07-21 09:31:09,Gelukkige verjaardag mama 🤍💫,Wandelen,15.1214,11849,4.5936,132.7,,New Balance Hierro V7,0.0
-2023-07-15 08:19:09,Ochtendwandeling,Wandelen,46.3829,28984,5.760000000000001,136.8,,New Balance Hierro V7,0.0
-2023-07-09 06:28:02,Ochtendwandeling,Wandelen,29.7815,18155,5.904,139.2,,New Balance Hierro V7,0.0
-2023-07-04 17:41:08,Namiddagwandeling,Wandelen,22.8355,13099,6.274800000000001,146.6,,New Balance Hierro V7,0.0
-2023-06-30 17:59:44,Namiddagwandeling,Wandelen,15.9876,9763,5.8968,155.6,,New Balance Hierro V7,0.0
-2023-06-21 11:46:53,Middagwandeling,Wandelen,6.0673,3695,5.9112,131.3,,New Balance Hierro V7,0.0
-2023-06-18 10:50:41,Nieuwe schoentjes wat kort instappen,Wandelen,3.0427,1689,6.4836,124.5,,New Balance Hierro V7,0.0
-2023-06-09 18:54:31,Pittig nachtje ,Wandelen,60.3265,39716,5.4684,128.5,,,0.0
-2023-06-04 05:05:41,Ochtendwandeling,Wandelen,43.4718,27447,5.702400000000001,127.5,,,0.0
-2023-06-01 15:02:14,Namiddagwandeling,Wandelen,6.7258000000000004,4003,6.048,118.2,,,0.0
-2023-05-28 10:43:04,Ochtendwandeling,Wandelen,18.9011,11385,5.976,138.1,,,0.0
-2023-05-26 11:28:17,Middagrit,Fietsrit,44.409699999999994,8119,19.692,,,Proracer,0.0
-2023-05-22 17:52:14,Namiddagwandeling,Wandelen,11.9958,7378,5.8536,129.6,,,0.0
-2023-05-16 16:59:42,Namiddagwandeling,Wandelen,23.1941,14640,5.702400000000001,124.9,,,0.0
+2023-09-04 18:08:16,Avondloop,Hardlopen,4.2759,2289,6.7248,149.6,,New Balance Hierro V7,527.0
+2023-09-01 12:44:40,Middagloop,Hardlopen,4.3366999999999996,1943,8.035200000000001,172.6,,New Balance Hierro V7,529.0
+2023-08-30 19:09:40,Avondloop,Hardlopen,4.8481000000000005,2347,7.4376,158.6,,New Balance Hierro V7,572.0
+2023-08-28 18:21:40,Avondloop,Hardlopen,4.1114,2226,6.6492,149.7,,New Balance Hierro V7,471.0
+2023-08-23 12:36:18,Middagloop,Hardlopen,4.3925,2230,7.092,164.3,,New Balance Hierro V7,538.0
+2023-08-21 19:20:39,Avondloop,Hardlopen,3.4898000000000002,2050,6.1272,147.0,,New Balance Hierro V7,439.0
+2023-08-18 15:17:27,Namiddagloop,Hardlopen,3.9078000000000004,2400,5.860799999999999,151.7,,New Balance Hierro V7,533.0
+2023-08-11 20:30:42,Dodentocht 2023 👊👊,Wandelen,97.4617,63360,5.5368,149.5,,New Balance Hierro V7,15212.0
+2023-07-30 14:54:19,Namiddagwandeling,Wandelen,3.2759,1974,5.976,121.9,,New Balance Hierro V7,349.0
+2023-07-27 12:50:39,Nog 15 dagen tot de Dodentocht 🤞,Wandelen,5.1829,2959,6.3072,129.3,,New Balance Hierro V7,562.0
+2023-07-21 09:31:09,Gelukkige verjaardag mama 🤍💫,Wandelen,15.1214,11849,4.5936,132.7,,New Balance Hierro V7,2359.0
+2023-07-15 08:19:09,Ochtendwandeling,Wandelen,46.3829,28984,5.760000000000001,136.8,,New Balance Hierro V7,6082.0
+2023-07-09 06:28:02,Ochtendwandeling,Wandelen,29.7815,18155,5.904,139.2,,New Balance Hierro V7,3891.0
+2023-07-04 17:41:08,Namiddagwandeling,Wandelen,22.8355,13099,6.274800000000001,146.6,,New Balance Hierro V7,2997.0
+2023-06-30 17:59:44,Namiddagwandeling,Wandelen,15.9876,9763,5.8968,155.6,,New Balance Hierro V7,2438.0
+2023-06-21 11:46:53,Middagwandeling,Wandelen,6.0673,3695,5.9112,131.3,,New Balance Hierro V7,729.0
+2023-06-18 10:50:41,Nieuwe schoentjes wat kort instappen,Wandelen,3.0427,1689,6.4836,124.5,,New Balance Hierro V7,307.0
+2023-06-09 18:54:31,Pittig nachtje ,Wandelen,60.3265,39716,5.4684,128.5,,,7645.0
+2023-06-04 05:05:41,Ochtendwandeling,Wandelen,43.4718,27447,5.702400000000001,127.5,,,5208.0
+2023-06-01 15:02:14,Namiddagwandeling,Wandelen,6.7258000000000004,4003,6.048,118.2,,,684.0
+2023-05-28 10:43:04,Ochtendwandeling,Wandelen,18.9011,11385,5.976,138.1,,,2435.0
+2023-05-26 11:28:17,Middagrit,Fietsrit,44.409699999999994,8119,19.692,,,Proracer,1601.0
+2023-05-22 17:52:14,Namiddagwandeling,Wandelen,11.9958,7378,5.8536,129.6,,,1430.0
+2023-05-16 16:59:42,Namiddagwandeling,Wandelen,23.1941,14640,5.702400000000001,124.9,,,2693.0
 2023-05-15 19:11:32,Zwift - Watopia's Waistband in Watopia,Virtuele fietsrit,28.5902,3220,31.964399999999998,,162.4,Proracer,522.9
-2023-05-05 15:07:15,Afzien en afzien enzo ,Wandelen,38.8011,25692,5.436,,,,0.0
+2023-05-05 15:07:15,Afzien en afzien enzo ,Wandelen,38.8011,25692,5.436,,,,3766.3
 2023-05-04 19:06:42,Zwift - New York,Virtuele fietsrit,11.110299999999999,1806,22.1472,,152.3,Proracer,275.0
 2023-05-02 19:13:21,Zwift - Race: STAGE 1: Crit Club — Volcano Circuit CCW (D) on Volcano Circuit CCW in Watopia,Virtuele fietsrit,17.403,1658,37.7856,,196.5,Proracer,325.8
-2023-04-29 09:18:16,Wandeling met Dimi ,Wandelen,28.2137,19394,5.238,,,,0.0
-2023-04-24 18:06:57,Avondwandeling,Wandelen,9.3175,5679,5.9076,,,,0.0
-2023-04-22 09:27:44,Ochtendwandeling 🌧️🌧️🌧️,Wandelen,20.7233,13019,5.7312,,,,0.0
-2023-04-20 12:23:15,Middagwandeling,Wandelen,8.139100000000001,4933,5.9399999999999995,,,,0.0
+2023-04-29 09:18:16,Wandeling met Dimi ,Wandelen,28.2137,19394,5.238,,,,2738.6
+2023-04-24 18:06:57,Avondwandeling,Wandelen,9.3175,5679,5.9076,,,,904.4
+2023-04-22 09:27:44,Ochtendwandeling 🌧️🌧️🌧️,Wandelen,20.7233,13019,5.7312,,,,2011.5
+2023-04-20 12:23:15,Middagwandeling,Wandelen,8.139100000000001,4933,5.9399999999999995,,,,790.0
 2023-04-17 19:00:32,Zwift - Race: 3R Racing (D) on Queen's Highway in Yorkshire,Virtuele fietsrit,8.0833,860,33.8364,,197.4,Proracer,169.7
-2023-04-15 13:10:29,Wandeling met papa,Wandelen,11.2386,7889,5.13,,,,0.0
+2023-04-15 13:10:29,Wandeling met papa,Wandelen,11.2386,7889,5.13,,,,1090.9
 2023-04-13 16:18:05,Namiddagwandeling,Wandelen,7.4483999999999995,4847,5.5332,,,,0.0
 2023-04-11 18:55:02,Zwift - Group Ride: The HERD Tuesday Social (D) on R.G.V. in France,Virtuele fietsrit,32.820800000000006,3625,32.5944,,126.8,Proracer,459.6
 2023-04-10 09:29:02,Beetje losrijden in Makuri Islands,Virtuele fietsrit,20.9138,3005,25.056,,127.1,Proracer,381.8
