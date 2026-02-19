@@ -383,39 +383,39 @@ Datum van activiteit,Naam activiteit,Activiteitstype,Afstand,Beweegtijd,Gemiddel
 2022-10-19 12:54:28,Middagrit,Fietsrit,38.344800000000006,5908,23.364,,,Proracer,1585.0
 2022-10-12 14:36:24,Namiddagrit,Fietsrit,31.5489,7055,16.099200000000003,,,Proracer,1011.0
 2022-10-10 10:23:52,Ochtendwandeling,Wandelen,13.4746,11125,4.3596,108.4,,,1812.0
-2022-10-06 10:02:47,Ochtendwandeling,Wandelen,20.5358,12967,5.702400000000001,115.1,,,0.0
-2022-10-05 13:01:00,Namiddagrit,Fietsrit,48.2027,7381,23.511599999999998,,,Proracer,0.0
-2022-10-03 19:20:27,Avondloop,Hardlopen,4.6533999999999995,2236,7.4916,,,,0.0
-2022-09-29 12:14:02,E-MTB,Fietsrit,23.3134,3651,22.986,,,Proracer,0.0
-2022-09-27 12:40:23,E-MTB,Fietsrit,20.9994,3290,22.9788,,,Proracer,0.0
-2022-09-26 20:19:03,Avondloop,Hardlopen,3.4917,1579,7.9596,,,,0.0
-2022-09-23 12:01:58,E-MTB ,Fietsrit,28.8699,4748,21.888,,,Proracer,0.0
-2022-09-20 17:51:59,Namiddagrit,Fietsrit,46.1248,7304,22.734,151.3,,Proracer,0.0
-2022-09-19 11:58:08,Middagrit,Fietsrit,23.4932,3299,25.635600000000004,164.1,,Proracer,0.0
-2022-09-17 14:16:15,Namiddagloop,Hardlopen,4.4302,2082,7.660800000000001,147.4,,,0.0
-2022-09-14 19:06:01,Avondrit 🌧️🌧️,Fietsrit,23.424400000000002,3481,24.2244,,,Proracer,0.0
-2022-09-14 15:28:27,Namiddagloop,Hardlopen,3.4613,1483,8.4024,,,,0.0
-2022-09-12 12:42:42,Namiddagloop,Hardlopen,3.9425,1638,8.6652,,,,0.0
-2022-09-07 18:55:14,Avondloop,Hardlopen,4.2251,1564,9.723600000000001,162.4,,,0.0
-2022-09-01 21:16:09,Nachtloop,Hardlopen,4.3845,1591,9.9216,174.2,,,0.0
-2022-08-31 15:53:57,Namiddagwandeling,Wandelen,2.7628000000000004,1919,5.184,111.2,,,0.0
-2022-08-31 15:00:59,Namiddagloop,Hardlopen,1.9385,701,9.954,166.0,,,0.0
-2022-08-31 14:00:19,Namiddagwandeling,Wandelen,2.1624,1434,5.4288,115.6,,,0.0
-2022-08-29 13:03:54,Namiddagloop,Hardlopen,3.988,1382,10.389600000000002,182.1,,,0.0
-2022-08-28 13:26:54,Namiddagloop,Hardlopen,3.2376,1147,10.1628,,,,0.0
-2022-08-27 18:47:49,Avondloop,Hardlopen,2.1431,715,10.7892,,,,0.0
+2022-10-06 10:02:47,Ochtendwandeling,Wandelen,20.5358,12967,5.702400000000001,115.1,,,2196.0
+2022-10-05 13:01:00,Namiddagrit,Fietsrit,48.2027,7381,23.511599999999998,,,Proracer,2128.0
+2022-10-03 19:20:27,Avondloop,Hardlopen,4.6533999999999995,2236,7.4916,,,,456.2
+2022-09-29 12:14:02,E-MTB,Fietsrit,23.3134,3651,22.986,,,Proracer,1025.0
+2022-09-27 12:40:23,E-MTB,Fietsrit,20.9994,3290,22.9788,,,Proracer,908.0
+2022-09-26 20:19:03,Avondloop,Hardlopen,3.4917,1579,7.9596,,,,342.4
+2022-09-23 12:01:58,E-MTB ,Fietsrit,28.8699,4748,21.888,,,Proracer,1287.0
+2022-09-20 17:51:59,Namiddagrit,Fietsrit,46.1248,7304,22.734,151.3,,Proracer,1426.0
+2022-09-19 11:58:08,Middagrit,Fietsrit,23.4932,3299,25.635600000000004,164.1,,Proracer,842.0
+2022-09-17 14:16:15,Namiddagloop,Hardlopen,4.4302,2082,7.660800000000001,147.4,,,432.6
+2022-09-14 19:06:01,Avondrit 🌧️🌧️,Fietsrit,23.424400000000002,3481,24.2244,,,Proracer,922.0
+2022-09-14 15:28:27,Namiddagloop,Hardlopen,3.4613,1483,8.4024,,,,338.6
+2022-09-12 12:42:42,Namiddagloop,Hardlopen,3.9425,1638,8.6652,,,,385.4
+2022-09-07 18:55:14,Avondloop,Hardlopen,4.2251,1564,9.723600000000001,162.4,,,394.0
+2022-09-01 21:16:09,Nachtloop,Hardlopen,4.3845,1591,9.9216,174.2,,,433.0
+2022-08-31 15:53:57,Namiddagwandeling,Wandelen,2.7628000000000004,1919,5.184,111.2,,,287.0
+2022-08-31 15:00:59,Namiddagloop,Hardlopen,1.9385,701,9.954,166.0,,,289.0
+2022-08-31 14:00:19,Namiddagwandeling,Wandelen,2.1624,1434,5.4288,115.6,,,220.0
+2022-08-29 13:03:54,Namiddagloop,Hardlopen,3.988,1382,10.389600000000002,182.1,,,408.0
+2022-08-28 13:26:54,Namiddagloop,Hardlopen,3.2376,1147,10.1628,,,,311.7
+2022-08-27 18:47:49,Avondloop,Hardlopen,2.1431,715,10.7892,,,,209.3
 2022-08-23 19:08:47,Zwift - Ramp Test in London,Virtuele fietsrit,11.3474,1533,26.6472,,129.3,Proracer,198.2
 2022-08-19 12:21:55,Zwift - Tick Tock in Watopia,Virtuele fietsrit,19.9387,2231,32.1732,,166.3,Proracer,371.0
-2022-08-09 21:31:56,Nachtloop,Hardlopen,2.1027,732,10.3428,,,,0.0
+2022-08-09 21:31:56,Nachtloop,Hardlopen,2.1027,732,10.3428,,,,205.0
 2022-07-30 12:29:10,Zwift - France,Virtuele fietsrit,12.4861,1831,24.5484,16.4,90.9,Proracer,166.4
-2022-04-24 08:47:25,Affligemse pijl met Bjarne,Fietsrit,91.1742,12447,26.37,,,Proracer,0.0
+2022-04-24 08:47:25,Affligemse pijl met Bjarne,Fietsrit,91.1742,12447,26.37,,,Proracer,3708.0
 2022-04-21 19:00:18,Zwift - Race: Mussara 24h Race Day (D) on Roule Ma Poule in France,Virtuele fietsrit,26.4026,3243,29.3076,,207.1,Proracer,671.7
 2022-04-21 18:32:42,Zwift - Wandering Flats in Makuri Islands,Virtuele fietsrit,10.072,1052,34.4664,,176.9,Proracer,186.1
-2022-04-15 16:11:19,Middagrit,Fietsrit,47.2143,6721,25.290000000000003,,,Proracer,0.0
-2022-04-12 11:04:41,Ritje met Bjarne tegen de wind 💨🚴🏼‍♂️🚴🏻,Fietsrit,49.1996,7402,23.9292,,,Proracer,0.0
-2022-04-07 12:59:24,Middagloop,Hardlopen,3.9402,1674,8.474400000000001,,,,0.0
-2022-03-23 15:31:42,Ketting 4x eraf ⛓🛠,Fietsrit,28.7904,3942,26.294400000000003,177.4,,Proracer,0.0
-2022-03-18 08:47:15,☀️🥶,Fietsrit,29.506400000000003,4193,25.3332,182.8,,Proracer,0.0
+2022-04-15 16:11:19,Middagrit,Fietsrit,47.2143,6721,25.290000000000003,,,Proracer,1925.0
+2022-04-12 11:04:41,Ritje met Bjarne tegen de wind 💨🚴🏼‍♂️🚴🏻,Fietsrit,49.1996,7402,23.9292,,,Proracer,1984.0
+2022-04-07 12:59:24,Middagloop,Hardlopen,3.9402,1674,8.474400000000001,,,,385.2
+2022-03-23 15:31:42,Ketting 4x eraf ⛓🛠,Fietsrit,28.7904,3942,26.294400000000003,177.4,,Proracer,1095.0
+2022-03-18 08:47:15,☀️🥶,Fietsrit,29.506400000000003,4193,25.3332,182.8,,Proracer,1221.0
 2022-03-07 14:57:24,Zwift - Watopia,Virtuele fietsrit,30.1262,3565,30.423600000000004,,179.7,Proracer,640.8
 2022-03-01 15:32:42,Watopia,Virtuele fietsrit,39.0561,6157,22.8348,,159.4,Proracer,981.1
 2022-02-24 18:18:21,Zwift - Tempo Accelerations in New York,Virtuele fietsrit,20.293,3015,24.2316,,162.1,Proracer,488.7
@@ -452,60 +452,60 @@ Datum van activiteit,Naam activiteit,Activiteitstype,Afstand,Beweegtijd,Gemiddel
 2021-11-26 16:47:27,Watopia,Virtuele fietsrit,7.1129,1089,23.5152,160.8,143.8,Proracer,156.6
 2021-11-26 16:12:42,Watopia,Virtuele fietsrit,4.9893,752,23.886,129.6,101.7,Proracer,76.5
 2021-11-24 13:38:05,Watopia,Virtuele fietsrit,30.024,4311,25.074,169.8,128.9,Proracer,555.6
-2021-09-22 16:31:18,Middagloop,Hardlopen,0.11,45,8.7984,108.7,,,0.0
-2021-09-12 09:54:49,Met papa en Yarni,Fietsrit,30.510900000000003,4917,22.338,148.0,,Proracer,0.0
-2021-09-04 09:54:53,"12 uur van Zolder. Met Yarni, Kristof, Mo, Bjarne en Jimmy",Fietsrit,133.341,15983,30.0348,175.3,,Proracer,0.0
-2021-09-04 09:26:56,Ochtendrit,Fietsrit,3.9145,513,27.471600000000002,161.4,,Proracer,0.0
-2021-09-04 09:01:29,Verkenning circuit,Fietsrit,4.0628,599,24.4188,147.2,,Proracer,0.0
-2021-08-25 15:33:00,Middagloop,Hardlopen,7.1265,2939,8.73,,,,0.0
-2021-08-13 11:16:02,Valleitjesroute met Yarni ,Fietsrit,32.2138,5086,22.8024,153.0,,Proracer,0.0
-2021-08-12 13:02:39,Ritje met Lore 🚴🏼‍♂️🚴🏻‍♀️,Fietsrit,23.713099999999997,4125,20.6964,149.7,,Proracer,0.0
-2021-08-06 17:25:39,Tof ritje met Yarni en Mo💨 🚴🏼‍♂️,Fietsrit,62.0338,8875,25.164,160.4,,Proracer,0.0
-2021-07-31 13:33:55,Middagwandeling,Wandelen,11.7799,9834,4.3128,,,,0.0
-2021-07-28 18:45:01,Avondwandeling,Wandelen,2.9415,2426,4.3632,,,,0.0
-2021-07-28 15:50:19,Middagwandeling,Wandelen,3.5064,2689,4.6944,,,,0.0
-2021-07-23 18:44:35,Eerste 22km met papa en Yarni,Fietsrit,45.0366,7258,22.338,148.3,,Proracer,0.0
-2021-07-21 07:08:56,Ochtendrit,Fietsrit,101.28,15156,24.0588,155.9,,Proracer,0.0
-2021-07-17 12:37:53,Michiel tegengekomen ,Fietsrit,2.2314000000000003,762,10.5408,,,Proracer,0.0
-2021-07-17 10:04:25,Ritje met Kristof. #nattevoeten,Fietsrit,55.186,7698,25.8084,,,Proracer,0.0
-2021-07-13 11:43:41,Middagrit,Fietsrit,15.6201,2127,26.4384,181.5,,Proracer,0.0
+2021-09-22 16:31:18,Middagloop,Hardlopen,0.11,45,8.7984,108.7,,,167.0
+2021-09-12 09:54:49,Met papa en Yarni,Fietsrit,30.510900000000003,4917,22.338,148.0,,Proracer,908.0
+2021-09-04 09:54:53,"12 uur van Zolder. Met Yarni, Kristof, Mo, Bjarne en Jimmy",Fietsrit,133.341,15983,30.0348,175.3,,Proracer,4025.0
+2021-09-04 09:26:56,Ochtendrit,Fietsrit,3.9145,513,27.471600000000002,161.4,,Proracer,132.0
+2021-09-04 09:01:29,Verkenning circuit,Fietsrit,4.0628,599,24.4188,147.2,,Proracer,137.0
+2021-08-25 15:33:00,Middagloop,Hardlopen,7.1265,2939,8.73,,,,697.6
+2021-08-13 11:16:02,Valleitjesroute met Yarni ,Fietsrit,32.2138,5086,22.8024,153.0,,Proracer,987.0
+2021-08-12 13:02:39,Ritje met Lore 🚴🏼‍♂️🚴🏻‍♀️,Fietsrit,23.713099999999997,4125,20.6964,149.7,,Proracer,848.0
+2021-08-06 17:25:39,Tof ritje met Yarni en Mo💨 🚴🏼‍♂️,Fietsrit,62.0338,8875,25.164,160.4,,Proracer,1786.0
+2021-07-31 13:33:55,Middagwandeling,Wandelen,11.7799,9834,4.3128,,,,1143.4
+2021-07-28 18:45:01,Avondwandeling,Wandelen,2.9415,2426,4.3632,,,,285.5
+2021-07-28 15:50:19,Middagwandeling,Wandelen,3.5064,2689,4.6944,,,,340.4
+2021-07-23 18:44:35,Eerste 22km met papa en Yarni,Fietsrit,45.0366,7258,22.338,148.3,,Proracer,1412.0
+2021-07-21 07:08:56,Ochtendrit,Fietsrit,101.28,15156,24.0588,155.9,,Proracer,2852.0
+2021-07-17 12:37:53,Michiel tegengekomen ,Fietsrit,2.2314000000000003,762,10.5408,,,Proracer,73.0
+2021-07-17 10:04:25,Ritje met Kristof. #nattevoeten,Fietsrit,55.186,7698,25.8084,,,Proracer,2258.0
+2021-07-13 11:43:41,Middagrit,Fietsrit,15.6201,2127,26.4384,181.5,,Proracer,644.0
 2021-07-10 09:20:43,Ochtendrit,Fietsrit,73.7745,11788,22.5288,,,Proracer,0.0
 2021-07-10 08:57:17,Ochtendrit,Fietsrit,3.2611,532,22.068,,,Proracer,0.0
 2021-06-27 11:14:12,Solo km’s maken 💨🚴🏻,Fietsrit,61.0974,9518,23.1084,,,Proracer,0.0
 2021-06-06 10:19:11,Ritje met Kristof 🚴🏻🚴🏼‍♂️,Fietsrit,33.4387,5228,23.0256,,,Proracer,0.0
 2021-05-30 10:23:35,Ochtendrit,Fietsrit,37.8793,5999,22.7304,,,Proracer,0.0
-2021-05-25 07:49:39,Ochtendrit,Fietsrit,3.4132,570,21.556800000000003,145.4,,Proracer,0.0
-2021-04-28 16:12:19,Middagwandeling,Wandelen,3.5388,3393,3.7548,,,,0.0
-2021-04-21 13:36:13,🍦wandeling met ons klein en Lou❤️,Wandelen,3.6664,3089,4.2732,,,,0.0
-2021-03-14 13:32:25,Zondagswandeling met Lore 🏞,Wandelen,3.2487,2764,4.23,,,,0.0
-2021-03-05 16:10:07,Rustig kilometers maken met Yarni ,Fietsrit,45.003,7621,21.258000000000003,164.0,,Proracer,0.0
-2021-02-28 10:38:17,Rustig ritje,Fietsrit,37.004,6598,20.1888,157.2,,Proracer,0.0
+2021-05-25 07:49:39,Ochtendrit,Fietsrit,3.4132,570,21.556800000000003,145.4,,Proracer,127.0
+2021-04-28 16:12:19,Middagwandeling,Wandelen,3.5388,3393,3.7548,,,,343.5
+2021-04-21 13:36:13,🍦wandeling met ons klein en Lou❤️,Wandelen,3.6664,3089,4.2732,,,,355.9
+2021-03-14 13:32:25,Zondagswandeling met Lore 🏞,Wandelen,3.2487,2764,4.23,,,,315.3
+2021-03-05 16:10:07,Rustig kilometers maken met Yarni ,Fietsrit,45.003,7621,21.258000000000003,164.0,,Proracer,2002.0
+2021-02-28 10:38:17,Rustig ritje,Fietsrit,37.004,6598,20.1888,157.2,,Proracer,1378.0
 2021-02-23 15:45:05,Middagrit,Fietsrit,46.579699999999995,7406,22.6404,,,Proracer,0.0
-2021-02-21 10:13:09,Eerste rit van het jaar ,Fietsrit,56.419599999999996,9001,22.564799999999998,174.8,,Proracer,0.0
+2021-02-21 10:13:09,Eerste rit van het jaar ,Fietsrit,56.419599999999996,9001,22.564799999999998,174.8,,Proracer,2840.0
 2020-12-17 15:31:48,Watopia,Virtuele fietsrit,43.6975,5183,30.351599999999998,139.0,179.7,Proracer,931.3
 2020-12-15 15:00:18,Zwift Time Trial Tuesday: Tempus Fugit (E),Virtuele fietsrit,17.9312,1943,33.224399999999996,157.6,217.7,Proracer,423.0
 2020-12-14 14:37:12,"eerste test met Tacx, snelheid klopt precies nog niet.. ",Virtuele fietsrit,31.580599999999997,3222,35.2872,161.2,196.4,Proracer,632.7
-2020-11-28 13:23:22,Middagwandeling,Wandelen,7.3376,5825,4.5360000000000005,105.4,,,0.0
-2020-11-21 10:36:11,Ochtendrit,Fietsrit,39.6154,6075,23.4756,172.3,,Proracer,0.0
-2020-11-18 14:43:53,Middagrit,Fietsrit,22.9117,3396,24.2892,155.0,,Proracer,0.0
-2020-11-12 15:01:26,Middagloop,Hardlopen,4.2123,1684,9.0036,168.0,,,0.0
-2020-11-11 10:03:14,Ochtendrit,Fietsrit,58.366,9137,22.9968,171.3,,Proracer,0.0
-2020-11-08 14:14:03,Middagwandeling,Wandelen,1.9048,2185,3.1392,103.6,,,0.0
+2020-11-28 13:23:22,Middagwandeling,Wandelen,7.3376,5825,4.5360000000000005,105.4,,,860.0
+2020-11-21 10:36:11,Ochtendrit,Fietsrit,39.6154,6075,23.4756,172.3,,Proracer,1568.0
+2020-11-18 14:43:53,Middagrit,Fietsrit,22.9117,3396,24.2892,155.0,,Proracer,737.0
+2020-11-12 15:01:26,Middagloop,Hardlopen,4.2123,1684,9.0036,168.0,,,496.0
+2020-11-11 10:03:14,Ochtendrit,Fietsrit,58.366,9137,22.9968,171.3,,Proracer,2886.0
+2020-11-08 14:14:03,Middagwandeling,Wandelen,1.9048,2185,3.1392,103.6,,,387.0
 2020-11-04 15:32:00,Veel veldwegjes met Yarni,Fietsrit,33.322300000000006,5633,21.297600000000003,,,Proracer,0.0
 2020-10-22 16:17:05,Eerste valpartij 🤕,Fietsrit,47.251400000000004,7597,22.392,,,Proracer,0.0
 2020-10-18 08:46:07,Ochtendrit,Fietsrit,55.3509,8751,22.77,,,Proracer,0.0
 2020-10-03 16:07:28,Middagrit,Fietsrit,20.8477,2977,25.210800000000003,,,Proracer,0.0
-2020-08-22 06:28:38,Ochtendrit,Fietsrit,139.778,24553,20.494799999999998,143.7,,Proracer,0.0
-2020-08-19 17:18:26,Middagrit,Fietsrit,14.663799999999998,2098,25.1604,165.9,,Proracer,0.0
-2020-08-12 17:59:20,Heel veel last aan de spieren 🤕,Fietsrit,32.3422,4994,23.3136,157.4,,Proracer,0.0
-2020-08-07 08:15:16,Leeuw van Waterloo 🦁🥵🥵,Fietsrit,77.778,12978,21.574800000000003,160.7,,Proracer,0.0
-2020-08-04 18:03:00,Avondrit,Fietsrit,60.964,8766,25.038,163.5,,Proracer,0.0
-2020-08-01 10:15:11,Tof ritje met Kristof en Bjarne 🚴🏼‍♂️🚴🏻🚴🏼‍♂️,Fietsrit,53.75,7991,24.2136,172.0,,Proracer,0.0
-2020-07-29 19:47:07,Avondrit,Fietsrit,44.2699,6690,23.8212,163.9,,Proracer,0.0
-2020-07-25 10:34:47,Ochtendrit,Fietsrit,54.3793,8277,23.652,154.5,,Proracer,0.0
-2020-07-20 17:59:45,Middagrit,Fietsrit,3.4623000000000004,486,25.6464,147.4,,Proracer,0.0
+2020-08-22 06:28:38,Ochtendrit,Fietsrit,139.778,24553,20.494799999999998,143.7,,Proracer,5111.0
+2020-08-19 17:18:26,Middagrit,Fietsrit,14.663799999999998,2098,25.1604,165.9,,Proracer,522.0
+2020-08-12 17:59:20,Heel veel last aan de spieren 🤕,Fietsrit,32.3422,4994,23.3136,157.4,,Proracer,1238.0
+2020-08-07 08:15:16,Leeuw van Waterloo 🦁🥵🥵,Fietsrit,77.778,12978,21.574800000000003,160.7,,Proracer,3119.0
+2020-08-04 18:03:00,Avondrit,Fietsrit,60.964,8766,25.038,163.5,,Proracer,2133.0
+2020-08-01 10:15:11,Tof ritje met Kristof en Bjarne 🚴🏼‍♂️🚴🏻🚴🏼‍♂️,Fietsrit,53.75,7991,24.2136,172.0,,Proracer,2082.0
+2020-07-29 19:47:07,Avondrit,Fietsrit,44.2699,6690,23.8212,163.9,,Proracer,1663.0
+2020-07-25 10:34:47,Ochtendrit,Fietsrit,54.3793,8277,23.652,154.5,,Proracer,1954.0
+2020-07-20 17:59:45,Middagrit,Fietsrit,3.4623000000000004,486,25.6464,147.4,,Proracer,104.0
 2020-07-20 17:59:01,Ontspannen ritje met papa en Kristof,Fietsrit,52.3287,8469,22.244400000000002,,,Proracer,0.0
-2020-07-16 16:23:07,Middagloop,Hardlopen,3.881,1443,9.684,,,,0.0
+2020-07-16 16:23:07,Middagloop,Hardlopen,3.881,1443,9.684,,,,380.5
 2020-07-12 17:29:48,avondrit,Fietsrit,46.047599999999996,6683,24.804,,,Proracer,0.0
 2020-07-08 21:29:31,Nachtloop,Hardlopen,2.9939,1033,10.4328,184.8,,,0.0
 2020-07-02 12:46:17,Middagloop,Hardlopen,3.4919000000000002,1519,8.2764,168.7,,,0.0
