@@ -220,7 +220,6 @@ def generate_sport_cards(df_yr, df_prev_comp):
         t=df_s['Beweegtijd_sec'].sum(); tp=df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
         hr=df_s['Hartslag'].mean(); wt=df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
         
-        # Calorieën berekenen als ze in de CSV zitten
         cal = df_s['Calorieën'].sum() if 'Calorieën' in df_s.columns else 0
         
         spd = f"{(d/(t/3600)):.1f} km/u" if t > 0 and cat not in ['Padel','Krachttraining'] else "-"
@@ -231,8 +230,6 @@ def generate_sport_cards(df_yr, df_prev_comp):
         if cat not in ['Padel','Krachttraining']: rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp)}</div></div><div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
         if pd.notna(wt) and wt>0: rows += f'<div class="stat-row"><span>Wattage</span><strong>⚡ {wt:.0f} W</strong></div>'
         if pd.notna(hr): rows += f'<div class="stat-row"><span>Hartslag</span><strong class="hr-blur">❤️ {hr:.0f}</strong></div>'
-        
-        # Voeg calorieën rij toe indien > 0
         if cal > 0: rows += f'<div class="stat-row"><span>Energie</span><strong>🔥 {cal:,.0f} kcal</strong></div>'
         
         html += f"""<div class="sport-card"><div class="sport-header" style="color:{color}"><div class="icon-circle" style="background:{color}15">{icon}</div><h3>{cat}</h3></div><div class="sport-body">{rows}</div></div>"""
@@ -259,14 +256,38 @@ def generate_hall_of_fame(df):
         html += f"""<div class="hof-card"><div class="hof-header" style="color:{color}">{icon} {cat}</div>{secs}</div>"""
     return html + '</div>'
 
+# DE VERNIEUWDE GARAGE INCLUSIEF UREN
 def generate_gear_section(df):
-    dfg = df.dropna(subset=['Gear']).copy(); dfg = dfg[dfg['Gear'].str.strip()!='']
+    dfg = df.dropna(subset=['Gear']).copy()
+    dfg = dfg[dfg['Gear'].str.strip() != '']
     if dfg.empty: return ""
-    stats = dfg.groupby('Gear').agg(C=('Categorie','count'), K=('Afstand_km','sum'), T=('Categorie', lambda x: x.mode()[0])).reset_index().sort_values('K', ascending=False)
+    
+    stats = dfg.groupby('Gear').agg(
+        C=('Categorie', 'count'), 
+        K=('Afstand_km', 'sum'), 
+        S=('Beweegtijd_sec', 'sum'), 
+        T=('Categorie', lambda x: x.mode()[0])
+    ).reset_index().sort_values('K', ascending=False)
+    
     html = '<div class="kpi-grid">'
     for _, r in stats.iterrows():
         icon = '🚲' if r['T'] in ['Fiets', 'Zwift'] else '👟'
-        html += f"""<div class="kpi-card" style="padding:15px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:20px;">{icon}</span><strong style="font-size:13px;">{r['Gear']}</strong></div><div style="font-size:18px;font-weight:700;color:{COLORS['primary']}; font-variant-numeric: tabular-nums;">{r['K']:,.0f} km</div><div style="font-size:11px;color:{COLORS['text_light']}">{r['C']} act.</div></div>"""
+        uren = r['S'] / 3600 
+        
+        html += f"""
+        <div class="kpi-card" style="padding:15px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <span style="font-size:20px;">{icon}</span>
+                <strong style="font-size:13px; line-height:1.2;">{r['Gear']}</strong>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:{COLORS['primary']}; font-variant-numeric: tabular-nums;">
+                {r['K']:,.0f} km
+            </div>
+            <div style="font-size:12px;color:{COLORS['text_light']}; margin-top:6px; font-weight:600; display:flex; justify-content:space-between; align-items:center; padding-top:6px; border-top:1px dashed #e2e8f0;">
+                <span>⏱️ {uren:,.0f} uur</span>
+                <span>🔄 {r['C']} sessies</span>
+            </div>
+        </div>"""
     return html + "</div>"
 
 def generate_logbook(df, yr):
@@ -281,7 +302,7 @@ def generate_kpi(lbl, val, icon, diff_html):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V56.1 (Volledige Dashboard incl. Calorieën voorbereiding)...")
+    print("🚀 Start V56.2 (Volledige Dashboard incl. Calorieën & Uitgebreide Garage)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Gemiddeld wattage':'Wattage'}
@@ -292,7 +313,6 @@ def genereer_dashboard():
         df['Hartslag'] = pd.to_numeric(df['Hartslag'], errors='coerce')
         if 'Wattage' in df.columns: df['Wattage'] = pd.to_numeric(df['Wattage'], errors='coerce')
         
-        # Nieuw: Calorieën inlezen indien aanwezig
         if 'Calorieën' in df.columns: df['Calorieën'] = pd.to_numeric(df['Calorieën'], errors='coerce').fillna(0)
 
         df['Datum'] = df['Datum'].apply(solve_dates); df = df.dropna(subset=['Datum'])
@@ -397,7 +417,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V56.1) gegenereerd!")
+        print("✅ Dashboard (V56.2) gegenereerd!")
 
     except Exception as e:
         print(f"❌ Fout: {e}")
