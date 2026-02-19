@@ -1,8 +1,9 @@
 name: Update Strava Data
 
 on:
+  on:
   schedule:
-    - cron: '0 6,21 * * *' # Draait om 06:00 en 21:00
+    - cron: '*/10 * * * *' # Draait elke 10 minuten (ongeveer)
   workflow_dispatch:       # Handmatige knop blijft werken
 
 permissions:
