@@ -13,7 +13,7 @@ ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 
 # --- ZELF GEDEFINIEERDE UITRUSTING (SCHOENEN) ---
-# OPMERKING: Fietsen worden automatisch via datum bepaald. Vul hier je schoenennamen in:
+# OPMERKING: Fietsen worden automatisch via datum bepaald. 
 MANUAL_GEAR_MAP = {
     'g20191215': 'Adidas Adistar',       
     'g28340688': 'New Balance Hierro V9',       
