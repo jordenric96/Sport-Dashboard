@@ -56,18 +56,15 @@ def process_data():
     while True:
         r = requests.get(f"{ACTIVITIES_URL}?per_page=200&page={page}", headers=headers)
         
-        # 🔥 VEILIGHEIDSGORDEL 1: Check of Strava een error status stuurt (bijv. 429 Rate Limit)
+        # 🔥 Echte waarschuwing: Stuur een exit error (rood kruisje) als we direct geblokkeerd worden
         if r.status_code != 200:
-            print(f"⚠️ Strava weigert dienst (Code {r.status_code}). Waarschijnlijk de 15-minuten limiet bereikt!")
-            print(f"Details: {r.text}")
-            break
+            print(f"❌ Strava weigert dienst (Code {r.status_code}). Waarschijnlijk de API limiet bereikt!")
+            exit(1)
             
         data = r.json()
-        
-        # 🔥 VEILIGHEIDSGORDEL 2: Check of data per ongeluk een tekstmelding is ipv een lijst
         if isinstance(data, dict) and 'message' in data:
-            print(f"⚠️ Foutmelding van Strava: {data['message']}")
-            break
+            print(f"❌ Foutmelding van Strava: {data['message']}")
+            exit(1)
             
         if not data: 
             break
@@ -77,10 +74,9 @@ def process_data():
             break
         page += 1
 
-    # Als we nul ritten hebben opgehaald (bijv. door blokkade), stop het script netjes
     if not all_activities:
-        print("❌ Geen activiteiten kunnen ophalen. Script stopt, probeer het over 15 minuten opnieuw.")
-        return
+        print("❌ Geen activiteiten gevonden.")
+        exit(1)
 
     clean_data = []
     api_calls = 0
@@ -100,9 +96,7 @@ def process_data():
                 
         cal = existing_cals.get(dt, 0)
         
-        if cal == 0:
-            cal = a.get('calories', a.get('kilojoules', 0))
-            
+        # We vragen calorieën pas op zolang Strava ons niet blokkeert (api_calls < 999)
         if cal == 0 and api_calls < 80: 
             act_id = a['id']
             try:
@@ -112,6 +106,11 @@ def process_data():
                     cal = detail.get('calories', 0)
                     api_calls += 1
                     time.sleep(0.5)
+                elif res.status_code == 429:
+                    # 🔥 Slimme fix: Limiet bereikt TUSSENDOOR? Stop met calorieën zoeken, 
+                    # maar ga wel door met het opslaan van je nieuwe ritten!
+                    print("⚠️ API limiet bereikt tijdens het zoeken naar calorieën. We slaan op wat we hebben!")
+                    api_calls = 999
             except:
                 pass
 
@@ -130,8 +129,11 @@ def process_data():
 
     df = pd.DataFrame(clean_data)
     df.to_csv('activities.csv', index=False)
-    print(f"💾 Klaar! {len(df)} activiteiten opgeslagen. {api_calls} detail-opvragingen gedaan.")
+    print(f"💾 Klaar! {len(df)} activiteiten opgeslagen. Nieuwe data is toegevoegd.")
 
 if __name__ == "__main__":
-    if not CLIENT_ID: print("❌ Geen API keys.")
-    else: process_data()
+    if not CLIENT_ID: 
+        print("❌ Geen API keys gevonden.")
+        exit(1)
+    else: 
+        process_data()
