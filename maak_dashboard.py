@@ -15,16 +15,16 @@ HR_ZONES = {'Z1 Herstel': 135, 'Z2 Duur': 152, 'Z3 Tempo': 168, 'Z4 Drempel': 18
 
 # TDT ROCKETS DARK MODE THEMA
 COLORS = {
-    'primary': '#00e5ff',      # Neon Cyaan als hoofd-accent
+    'primary': '#00e5ff',      
     'gold': '#facc15',         
-    'bg': '#0b0914',           # Deep Space Blue (achtergrond)
-    'card': '#1e1b4b',         # TDT Donkerblauw
-    'text': '#f8fafc',         # Helder wit voor leesbaarheid
-    'text_light': '#94a3b8',   # Zacht grijs voor labels
+    'bg': '#0b0914',           
+    'card': '#1e1b4b',         
+    'text': '#f8fafc',         
+    'text_light': '#94a3b8',   
     
-    'zwift': '#ff007f',        # Neon Roze
-    'bike_out': '#00e5ff',     # Neon Cyaan
-    'run': '#facc15',          # Felgeel
+    'zwift': '#ff007f',        
+    'bike_out': '#00e5ff',     
+    'run': '#facc15',          
     
     'swim': '#3b82f6', 'padel': '#10b981', 'walk': '#a855f7', 
     'strength': '#ec4899', 'default': '#94a3b8', 'ref_gray': '#334155',
@@ -117,11 +117,12 @@ def create_ytd_chart(df, current_year):
     fig.update_layout(
         title='📈 Aantal km\'s', 
         template='plotly_dark', 
-        margin=dict(t=40,b=10,l=0,r=10),
+        # Aangepast: Meer marge boven & onder. Legenda naar beneden gehaald!
+        margin=dict(t=50, b=60, l=0, r=10),
         height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(title="", showgrid=False, fixedrange=True), 
         yaxis=dict(title="", showgrid=True, gridcolor='rgba(255,255,255,0.05)', fixedrange=True, side="right"), 
-        legend=dict(orientation="h", y=1.1, x=0),
+        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), 
         font=dict(color='#94a3b8')
     )
     return f'<div class="chart-box full-width" style="margin-bottom:25px; padding-left:5px;">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
@@ -186,13 +187,17 @@ def create_monthly_charts(df_cur, df_prev, year):
     fb.add_trace(go.Bar(x=months, y=pt, name=f"{year-1}", marker_color=COLORS['ref_gray'], offsetgroup=1))
     fb.add_trace(go.Bar(x=months, y=cz, name=f"{year} Zwift", marker_color=COLORS['zwift'], offsetgroup=2))
     fb.add_trace(go.Bar(x=months, y=co, name=f"{year} Buiten", marker_color=COLORS['bike_out'], base=cz, offsetgroup=2))
-    fb.update_layout(title='🚴 Fietsen (km)', template='plotly_dark', barmode='group', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
+    
+    # Aangepast: Marge vergroot en legenda netjes naar onderen
+    fb.update_layout(title='🚴 Fietsen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     
     pr = get_m(df_prev, ['Hardlopen']); cr = get_m(df_cur, ['Hardlopen'])
     fr = go.Figure()
     fr.add_trace(go.Bar(x=months, y=pr, name=f"{year-1}", marker_color=COLORS['ref_gray']))
     fr.add_trace(go.Bar(x=months, y=cr, name=f"{year}", marker_color=COLORS['run']))
-    fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_dark', barmode='group', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
+    
+    # Aangepast: Marge vergroot en legenda netjes naar onderen
+    fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-grid"><div class="chart-box">{fb.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box">{fr.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
 
 def create_heatmap(df_yr):
@@ -203,7 +208,7 @@ def create_heatmap(df_yr):
     pivot = grouped.pivot(index='Uur', columns='Weekdag', values='Aantal').fillna(0).reindex(columns=days_order)
     if pivot.empty: return ""
     fig = go.Figure(data=go.Heatmap(z=pivot.values, x=[nl_days[d] for d in pivot.columns], y=pivot.index, colorscale=[[0, 'rgba(255,255,255,0.03)'], [1, COLORS['bike_out']]], showscale=False))
-    fig.update_layout(title='📅 Hittekaart (Wanneer sport je?)', template='plotly_dark', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', range=[6, 23], fixedrange=True), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
+    fig.update_layout(title='📅 Hittekaart (Wanneer sport je?)', template='plotly_dark', margin=dict(t=50,b=40,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', range=[6, 23], fixedrange=True), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_strength_freq_chart(df_yr):
@@ -214,7 +219,7 @@ def create_strength_freq_chart(df_yr):
     fig = go.Figure()
     fig.add_trace(go.Bar(x=months, y=counts, marker_color=COLORS['strength'], text=counts, textposition='auto'))
     fig.add_shape(type="line", x0=-0.5, y0=8, x1=11.5, y1=8, line=dict(color="rgba(255,255,255,0.2)", width=1, dash="dot"))
-    fig.update_layout(title='🏋️ Kracht (Sessies per maand)', template='plotly_dark', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
+    fig.update_layout(title='🏋️ Kracht (Sessies per maand)', template='plotly_dark', margin=dict(t=50,b=40,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_scatter_plot(df_yr):
@@ -223,7 +228,9 @@ def create_scatter_plot(df_yr):
     fig.add_trace(go.Scatter(x=df_bike['Afstand_km'], y=df_bike['Gem_Snelheid'], mode='markers', name='Fiets', marker=dict(color=COLORS['bike_out'], size=8), text=df_bike['Naam']))
     fig.add_trace(go.Scatter(x=df_zwift['Afstand_km'], y=df_zwift['Gem_Snelheid'], mode='markers', name='Zwift', marker=dict(color=COLORS['zwift'], size=8), text=df_zwift['Naam']))
     fig.add_trace(go.Scatter(x=df_run['Afstand_km'], y=df_run['Gem_Snelheid'], mode='markers', name='Loop', marker=dict(color=COLORS['run'], size=8), text=df_run['Naam']))
-    fig.update_layout(title='⚡ Snelheid vs Afstand', template='plotly_dark', margin=dict(t=40,b=10,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.2), xaxis=dict(gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
+    
+    # Aangepast: Legenda mooi onderaan
+    fig.update_layout(title='⚡ Snelheid vs Afstand', template='plotly_dark', margin=dict(t=50,b=60,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.3, x=0.5, xanchor="center"), xaxis=dict(gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_zone_pie(df_yr):
@@ -233,7 +240,7 @@ def create_zone_pie(df_yr):
     color_map = {'Z1 Herstel': COLORS['z1'], 'Z2 Duur': COLORS['z2'], 'Z3 Tempo': COLORS['z3'], 'Z4 Drempel': COLORS['z4'], 'Z5 Max': COLORS['z5']}
     counts = df_hr['Zone'].value_counts().reset_index()
     fig = go.Figure(data=[go.Pie(labels=counts['Zone'], values=counts['count'], hole=0.6, marker=dict(colors=[color_map.get(z, '#334155') for z in counts['Zone']]))])
-    fig.update_layout(title='❤️ Hartslagzones', template='plotly_dark', margin=dict(t=40,b=10,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'))
+    fig.update_layout(title='❤️ Hartslagzones', template='plotly_dark', margin=dict(t=50,b=40,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def generate_sport_cards(df_yr, df_prev_comp):
@@ -262,13 +269,9 @@ def generate_sport_cards(df_yr, df_prev_comp):
                         <div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
                         
         if pd.notna(wt) and wt>0: rows += f'<div class="stat-row"><span>Wattage</span><strong>⚡ {wt:.0f} W</strong></div>'
-        
-        # 🔥 OPTIE 2 BEVEILIGING: HARTSLAG ECHT AFGESCHERMD
         if pd.notna(hr) and hr>0: rows += f'<div class="stat-row"><span>Hartslag</span><strong class="secure-hr" data-hr="{hr:.0f}">❤️ ***</strong></div>'
-        
         if cal > 0: rows += f'<div class="stat-row"><span>Energie</span><strong>🔥 {cal:,.0f} kcal</strong></div>'
             
-        # Achtergrond van het icoontje iets donkerder gemaakt zodat het neon eruit springt
         html += f"""<div class="sport-card"><div class="sport-header" style="color:{color}"><div class="icon-circle" style="background:rgba(255,255,255,0.05); border:1px solid {color}40;">{icon}</div><h3>{cat}</h3></div><div class="sport-body">{rows}</div></div>"""
     return html + '</div>'
 
@@ -365,7 +368,7 @@ def generate_kpi(lbl, val, icon, diff_html, unit=""):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V67.0 (TDT Rockets Dark Mode + 100% Veilige Hartslag!)...")
+    print("🚀 Start V68.0 (TDT Rockets + Legenda Fix & Ruimere Marges)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
@@ -423,13 +426,10 @@ def genereer_dashboard():
         .container{{width:96%; max-width:1400px; margin:0 auto;}}
         .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px; padding:0 10px;}}
         
-        /* Subtiel donker slotje */
         .lock-btn{{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:20px;cursor:pointer; font-family:'Poppins',sans-serif; color:white;}}
         
         .nav{{display:flex;gap:8px;overflow-x:auto;padding:10px;scrollbar-width:none;position:sticky;top:0;z-index:100;background:var(--bg);}}
         .nav-btn{{font-family:inherit;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer; color:var(--text_light); transition:0.2s;}}
-        
-        /* Rockets Nav Active Gradient */
         .nav-btn.active{{background:linear-gradient(45deg, #ff007f, #00e5ff);color:white; border:none; box-shadow:0 4px 15px rgba(0,229,255,0.2);}}
         
         .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:12px; margin-bottom:20px; padding:0 10px;}}
@@ -438,7 +438,6 @@ def genereer_dashboard():
         .sport-grid, .hof-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         
-        /* Dark mode kaartjes met subtiele neon border */
         .kpi-card, .sport-card, .hof-card, .chart-box, .streaks-section {{background:linear-gradient(145deg, #1e1b4b, #151236); padding:15px; border-radius:16px; border:1px solid rgba(255,255,255,0.05); box-shadow:0 4px 10px rgba(0,0,0,0.3);}}
         .chart-box, .chart-grid {{ max-width: 100%; overflow-x: hidden; }}
         .chart-box.full-width {{ margin: 0 10px 25px 10px; width: calc(100% - 20px); }}
@@ -471,7 +470,6 @@ def genereer_dashboard():
         }}
         function unlock(){{
             if(prompt("Wachtwoord:")==='Nala'){{
-                // TRUE VAULT LOGICA: Vervang *** door de data-hr code
                 document.querySelectorAll('.secure-hr').forEach(e => {{
                     e.innerHTML = '❤️ ' + e.getAttribute('data-hr');
                 }});
@@ -481,7 +479,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V67.0) klaar: TDT Rockets Dark Mode & Veilige Hartslag!")
+        print("✅ Dashboard (V68.0) klaar: Legenda's staan nu perfect gecentreerd onderaan!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
