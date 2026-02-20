@@ -124,7 +124,7 @@ def create_ytd_chart(df, current_year):
         legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), 
         font=dict(color='#94a3b8')
     )
-    return f'<div class="chart-box full-width" style="margin-bottom:25px; padding-left:5px;">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def calculate_streaks(df):
     valid = df.dropna(subset=['Datum']).sort_values('Datum')
@@ -162,7 +162,7 @@ def calculate_streaks(df):
 
 def generate_streaks_box(df):
     s = calculate_streaks(df)
-    return f"""<div class="streaks-section" style="margin-bottom:25px;">
+    return f"""<div class="streaks-section">
         <h3 class="box-title">🔥 MOTIVATIE REEKSEN</h3>
         <div class="streaks-container" style="display:flex; gap:30px; flex-wrap:wrap;">
             <div style="flex:1; min-width:200px;">
@@ -186,14 +186,12 @@ def create_monthly_charts(df_cur, df_prev, year):
     fb.add_trace(go.Bar(x=months, y=pt, name=f"{year-1}", marker_color=COLORS['ref_gray'], offsetgroup=1))
     fb.add_trace(go.Bar(x=months, y=cz, name=f"{year} Zwift", marker_color=COLORS['zwift'], offsetgroup=2))
     fb.add_trace(go.Bar(x=months, y=co, name=f"{year} Buiten", marker_color=COLORS['bike_out'], base=cz, offsetgroup=2))
-    
     fb.update_layout(title='🚴 Fietsen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     
     pr = get_m(df_prev, ['Hardlopen']); cr = get_m(df_cur, ['Hardlopen'])
     fr = go.Figure()
     fr.add_trace(go.Bar(x=months, y=pr, name=f"{year-1}", marker_color=COLORS['ref_gray']))
     fr.add_trace(go.Bar(x=months, y=cr, name=f"{year}", marker_color=COLORS['run']))
-    
     fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-grid"><div class="chart-box">{fb.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box">{fr.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
 
@@ -225,8 +223,6 @@ def create_scatter_plot(df_yr):
     fig.add_trace(go.Scatter(x=df_bike['Afstand_km'], y=df_bike['Gem_Snelheid'], mode='markers', name='Fiets', marker=dict(color=COLORS['bike_out'], size=8), text=df_bike['Naam']))
     fig.add_trace(go.Scatter(x=df_zwift['Afstand_km'], y=df_zwift['Gem_Snelheid'], mode='markers', name='Zwift', marker=dict(color=COLORS['zwift'], size=8), text=df_zwift['Naam']))
     fig.add_trace(go.Scatter(x=df_run['Afstand_km'], y=df_run['Gem_Snelheid'], mode='markers', name='Loop', marker=dict(color=COLORS['run'], size=8), text=df_run['Naam']))
-    
-    # Aangepast: Legenda mooi onderaan
     fig.update_layout(title='⚡ Snelheid vs Afstand', template='plotly_dark', margin=dict(t=50,b=60,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.3, x=0.5, xanchor="center"), xaxis=dict(gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
@@ -295,7 +291,7 @@ def generate_yearly_gear(df_yr, df_all, all_time_mode=False):
         sa = da['Beweegtijd_sec'].sum()
         
         html += f"""
-        <div class="kpi-card" style="padding:15px; display:flex; flex-direction:column; gap:12px;">
+        <div class="kpi-card" style="display:flex; flex-direction:column; gap:12px;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <span style="font-size:22px;">{icon}</span>
                 <strong style="font-size:14px; line-height:1.2; color:var(--text);">{g}</strong>
@@ -365,7 +361,7 @@ def generate_kpi(lbl, val, icon, diff_html, unit=""):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V69.0 (TDT Rockets + Alle kotjes even breed op mobiel)...")
+    print("🚀 Start V70.0 (Perfecte Breedte, 2x2 Hersteld, Legenda's Gefixt)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
@@ -419,28 +415,38 @@ def genereer_dashboard():
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
         :root{{--primary:#00e5ff;--bg:#0b0914;--card:#1e1b4b;--text:#f8fafc;--text_light:#94a3b8;}}
+        * {{ box-sizing: border-box; }}
         body{{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px 0;}}
         .container{{width:96%; max-width:1400px; margin:0 auto;}}
-        .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px; padding:0 10px;}}
         
+        .header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}}
         .lock-btn{{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:20px;cursor:pointer; font-family:'Poppins',sans-serif; color:white;}}
         
-        .nav{{display:flex;gap:8px;overflow-x:auto;padding:10px;scrollbar-width:none;position:sticky;top:0;z-index:100;background:var(--bg);}}
-        .nav-btn{{font-family:inherit;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer; color:var(--text_light); transition:0.2s;}}
+        .nav{{display:flex;gap:8px;overflow-x:auto;padding:10px 0;scrollbar-width:none;position:sticky;top:0;z-index:100;background:var(--bg);}}
+        .nav-btn{{font-family:inherit;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer; color:var(--text_light); transition:0.2s; flex-shrink: 0;}}
         .nav-btn.active{{background:linear-gradient(45deg, #ff007f, #00e5ff);color:white; border:none; box-shadow:0 4px 15px rgba(0,229,255,0.2);}}
         
-        .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:12px; margin-bottom:20px; padding:0 10px;}}
-        .kpi-grid{{grid-template-columns:repeat(2, 1fr);}}
+        /* ZERO extra horizontal margins/padding on wrappers to ensure exact edge-to-edge match */
+        .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:12px; margin-bottom:20px; width: 100%;}}
+        .kpi-grid{{grid-template-columns:repeat(2, 1fr);}} /* 2x2 grid is BACK! */
         @media(min-width:768px){{.kpi-grid{{grid-template-columns:repeat(4, 1fr);}}}}
         .sport-grid, .hof-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         
-        .kpi-card, .sport-card, .hof-card, .chart-box, .streaks-section {{background:linear-gradient(145deg, #1e1b4b, #151236); padding:15px; border-radius:16px; border:1px solid rgba(255,255,255,0.05); box-shadow:0 4px 10px rgba(0,0,0,0.3);}}
+        .kpi-card, .sport-card, .hof-card, .chart-box, .streaks-section {{
+            background:linear-gradient(145deg, #1e1b4b, #151236); 
+            padding:15px; 
+            border-radius:16px; 
+            border:1px solid rgba(255,255,255,0.05); 
+            box-shadow:0 4px 10px rgba(0,0,0,0.3);
+            width: 100%;
+        }}
         .chart-box, .chart-grid {{ max-width: 100%; overflow-x: hidden; }}
-        .chart-box.full-width {{ margin: 0 10px 25px 10px; width: calc(100% - 20px); }}
+        .chart-box.full-width {{ margin-bottom: 25px; width: 100%; }}
+        .streaks-section {{ margin-bottom: 25px; width: 100%; }}
         
-        .sec-title {{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin:0 0 15px 10px;color:var(--text)}}
-        .sec-sub{{font-size:13px;text-transform:uppercase;letter-spacing:1px;margin:35px 10px 10px 10px;border-bottom:2px solid rgba(255,255,255,0.05);padding-bottom:5px;color:var(--primary);font-weight:800; display:inline-block;}}
+        .sec-title {{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin:0 0 15px 0;color:var(--text)}}
+        .sec-sub{{font-size:13px;text-transform:uppercase;letter-spacing:1px;margin:35px 0 10px 0;border-bottom:2px solid rgba(255,255,255,0.05);padding-bottom:5px;color:var(--primary);font-weight:800; display:inline-block;}}
         .sec-lbl{{font-size:10px;text-transform:uppercase;color:var(--text_light);font-weight:700;margin-top:5px;}}
         .box-title{{font-size:11px;color:var(--text_light);text-transform:uppercase;margin-bottom:12px;letter-spacing:0.5px;font-weight:700}}
         
@@ -452,20 +458,8 @@ def genereer_dashboard():
         .streak-row{{display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--text); margin-bottom:4px;}}
         .streak-sub{{font-size:11px;color:var(--text_light);}}
         .icon-circle{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}}
-        .streaks-section {{ margin: 0 10px 25px 10px; }}
-
-        /* 🔥 NIEUWE CSS VOOR MOBIEL: ALLES FULL WIDTH 🔥 */
-        @media (max-width: 767px) {{
-            .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{
-                grid-template-columns: 1fr !important;
-            }}
-            .streaks-container {{
-                flex-direction: column;
-                gap: 15px;
-            }}
-        }}
         </style></head><body><div class="container">
-        <div class="header"><h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #ff007f, #00e5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚡ Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
+        <div class="header"><h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #ff007f, #00e5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚡ Sportoverzicht</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         <div class="nav">{nav}</div>{sects}</div>
         <script>
         function openTab(e,n){{
@@ -487,7 +481,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V69.0) klaar: Alle kotjes zijn nu even breed op mobiel!")
+        print("✅ Dashboard (V70.0) klaar: Perfecte edge-to-edge uitlijning & 2x2 grid hersteld!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
