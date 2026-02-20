@@ -13,7 +13,6 @@ ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities"
 
 # --- ZELF GEDEFINIEERDE UITRUSTING (SCHOENEN) ---
-# OPMERKING: Fietsen worden automatisch via datum bepaald. 
 MANUAL_GEAR_MAP = {
     'g20191215': 'Adidas Adistar',       
     'g28340688': 'New Balance Hierro V9',       
@@ -39,7 +38,6 @@ def process_data():
     token = get_access_token()
     headers = {'Authorization': f"Bearer {token}"}
     
-    # 1. Lees de oude CSV in om API requests voor calorieën te besparen
     existing_cals = {}
     if os.path.exists('activities.csv'):
         try:
@@ -53,15 +51,36 @@ def process_data():
 
     all_activities = []
     page = 1
-    print("📥 Bezig met ophalen historie (limit 1500)...")
+    print("📥 Bezig met ophalen historie...")
     
     while True:
         r = requests.get(f"{ACTIVITIES_URL}?per_page=200&page={page}", headers=headers)
+        
+        # 🔥 VEILIGHEIDSGORDEL 1: Check of Strava een error status stuurt (bijv. 429 Rate Limit)
+        if r.status_code != 200:
+            print(f"⚠️ Strava weigert dienst (Code {r.status_code}). Waarschijnlijk de 15-minuten limiet bereikt!")
+            print(f"Details: {r.text}")
+            break
+            
         data = r.json()
-        if not data: break
+        
+        # 🔥 VEILIGHEIDSGORDEL 2: Check of data per ongeluk een tekstmelding is ipv een lijst
+        if isinstance(data, dict) and 'message' in data:
+            print(f"⚠️ Foutmelding van Strava: {data['message']}")
+            break
+            
+        if not data: 
+            break
+            
         all_activities.extend(data)
-        if len(all_activities) >= 1500: break
+        if len(all_activities) >= 1500: 
+            break
         page += 1
+
+    # Als we nul ritten hebben opgehaald (bijv. door blokkade), stop het script netjes
+    if not all_activities:
+        print("❌ Geen activiteiten kunnen ophalen. Script stopt, probeer het over 15 minuten opnieuw.")
+        return
 
     clean_data = []
     api_calls = 0
@@ -70,18 +89,15 @@ def process_data():
         dt = a['start_date_local'].replace('T', ' ').replace('Z', '')
         sport_type = translate_type(a['type'])
         
-        # --- GEAR VERTALING (Basis voor schoenen) ---
         gear_id = a.get('gear_id')
         gear_name = MANUAL_GEAR_MAP.get(gear_id, gear_id) if gear_id else ""
         
-        # --- SLIMME DATUM-FIETS OVERRIDE (Buiten + Zwift) ---
         if sport_type in ['Fietsrit', 'Virtuele fietsrit']:
             if dt < "2025-05-09":
                 gear_name = "Proracer"
             else:
                 gear_name = "Merida Scultura 5000"
                 
-        # --- CALORIEËN OPHALEN VIA STRAVA ---
         cal = existing_cals.get(dt, 0)
         
         if cal == 0:
@@ -96,7 +112,6 @@ def process_data():
                     cal = detail.get('calories', 0)
                     api_calls += 1
                     time.sleep(0.5)
-                    print(f"   🔍 Detail opgehaald voor {sport_type} op {dt} ({cal} kcal)")
             except:
                 pass
 
