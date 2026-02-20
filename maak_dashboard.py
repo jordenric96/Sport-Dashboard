@@ -117,7 +117,6 @@ def create_ytd_chart(df, current_year):
     fig.update_layout(
         title='📈 Aantal km\'s', 
         template='plotly_dark', 
-        # Aangepast: Meer marge boven & onder. Legenda naar beneden gehaald!
         margin=dict(t=50, b=60, l=0, r=10),
         height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(title="", showgrid=False, fixedrange=True), 
@@ -165,7 +164,7 @@ def generate_streaks_box(df):
     s = calculate_streaks(df)
     return f"""<div class="streaks-section" style="margin-bottom:25px;">
         <h3 class="box-title">🔥 MOTIVATIE REEKSEN</h3>
-        <div style="display:flex; gap:30px; flex-wrap:wrap;">
+        <div class="streaks-container" style="display:flex; gap:30px; flex-wrap:wrap;">
             <div style="flex:1; min-width:200px;">
                 <div class="streak-row"><span class="label">Huidig Wekelijks:</span><span class="val" style="color:var(--primary);">{s['cur_week']} weken</span></div>
                 <div class="streak-row"><span class="label">Record Wekelijks:</span><span class="val" style="color:var(--text);">{s['max_week']} weken</span></div>
@@ -188,7 +187,6 @@ def create_monthly_charts(df_cur, df_prev, year):
     fb.add_trace(go.Bar(x=months, y=cz, name=f"{year} Zwift", marker_color=COLORS['zwift'], offsetgroup=2))
     fb.add_trace(go.Bar(x=months, y=co, name=f"{year} Buiten", marker_color=COLORS['bike_out'], base=cz, offsetgroup=2))
     
-    # Aangepast: Marge vergroot en legenda netjes naar onderen
     fb.update_layout(title='🚴 Fietsen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     
     pr = get_m(df_prev, ['Hardlopen']); cr = get_m(df_cur, ['Hardlopen'])
@@ -196,7 +194,6 @@ def create_monthly_charts(df_cur, df_prev, year):
     fr.add_trace(go.Bar(x=months, y=pr, name=f"{year-1}", marker_color=COLORS['ref_gray']))
     fr.add_trace(go.Bar(x=months, y=cr, name=f"{year}", marker_color=COLORS['run']))
     
-    # Aangepast: Marge vergroot en legenda netjes naar onderen
     fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-grid"><div class="chart-box">{fb.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box">{fr.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
 
@@ -368,7 +365,7 @@ def generate_kpi(lbl, val, icon, diff_html, unit=""):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V68.0 (TDT Rockets + Legenda Fix & Ruimere Marges)...")
+    print("🚀 Start V69.0 (TDT Rockets + Alle kotjes even breed op mobiel)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
@@ -456,6 +453,17 @@ def genereer_dashboard():
         .streak-sub{{font-size:11px;color:var(--text_light);}}
         .icon-circle{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}}
         .streaks-section {{ margin: 0 10px 25px 10px; }}
+
+        /* 🔥 NIEUWE CSS VOOR MOBIEL: ALLES FULL WIDTH 🔥 */
+        @media (max-width: 767px) {{
+            .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{
+                grid-template-columns: 1fr !important;
+            }}
+            .streaks-container {{
+                flex-direction: column;
+                gap: 15px;
+            }}
+        }}
         </style></head><body><div class="container">
         <div class="header"><h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #ff007f, #00e5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚡ Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         <div class="nav">{nav}</div>{sects}</div>
@@ -479,7 +487,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V68.0) klaar: Legenda's staan nu perfect gecentreerd onderaan!")
+        print("✅ Dashboard (V69.0) klaar: Alle kotjes zijn nu even breed op mobiel!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
