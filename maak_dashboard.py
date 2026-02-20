@@ -15,23 +15,22 @@ HR_ZONES = {'Z1 Herstel': 135, 'Z2 Duur': 152, 'Z3 Tempo': 168, 'Z4 Drempel': 18
 
 # TDT ROCKETS THEMA KLEUREN
 COLORS = {
-    'primary': '#1e1b4b',      # TDT Diep donkerblauw
-    'gold': '#facc15',         # TDT Geel
-    'bg': '#f3f4f6',           # Frisse lichte achtergrond
-    'card': '#ffffff',         # Witte kaarten
-    'text': '#0f172a',         # Donkere tekst
-    'text_light': '#64748b',   # Grijze subtitels
+    'primary': '#1e1b4b',      
+    'gold': '#facc15',         
+    'bg': '#f3f4f6',           
+    'card': '#ffffff',         
+    'text': '#0f172a',         
+    'text_light': '#64748b',   
     
-    'zwift': '#ff007f',        # TDT Neon Roze!
-    'bike_out': '#00e5ff',     # TDT Neon Cyaan!
-    'run': '#facc15',          # TDT Geel!
+    'zwift': '#ff007f',        
+    'bike_out': '#00e5ff',     
+    'run': '#facc15',          
     
     'swim': '#3b82f6', 'padel': '#10b981', 'walk': '#a855f7', 
     'strength': '#ec4899', 'default': '#64748b', 'ref_gray': '#cbd5e1',
     'z1': '#a3e635', 'z2': '#facc15', 'z3': '#fb923c', 'z4': '#f87171', 'z5': '#ef4444'
 }
 
-# Felle kleuren voor de jaren race
 YEAR_COLORS = ['#ff007f', '#00e5ff', '#facc15', '#1e1b4b', '#a855f7']
 
 # --- DATUM FIX ---
@@ -202,7 +201,6 @@ def create_heatmap(df_yr):
     grouped = df_hm.groupby(['Weekdag', 'Uur']).size().reset_index(name='Aantal')
     pivot = grouped.pivot(index='Uur', columns='Weekdag', values='Aantal').fillna(0).reindex(columns=days_order)
     if pivot.empty: return ""
-    # Aangepaste colorscale met de roze/cyaan vibe is lastig voor hitte, dus we houden een frisse kleur
     fig = go.Figure(data=go.Heatmap(z=pivot.values, x=[nl_days[d] for d in pivot.columns], y=pivot.index, colorscale=[[0, '#f8fafc'], [1, COLORS['bike_out']]], showscale=False))
     fig.update_layout(title='📅 Hittekaart (Wanneer sport je?)', template='plotly_white', margin=dict(t=40,b=20,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', range=[6, 23], fixedrange=True), xaxis=dict(fixedrange=True))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
@@ -362,7 +360,7 @@ def generate_kpi(lbl, val, icon, diff_html, unit=""):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V65.0 (TDT Rockets Thema!)...")
+    print("🚀 Start V66.0 (TDT Thema + Plotly Tab Fix)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
@@ -433,6 +431,7 @@ def genereer_dashboard():
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         
         .kpi-card, .sport-card, .hof-card, .chart-box, .streaks-section {{background:white; padding:15px; border-radius:16px; border:1px solid #e5e7eb; box-shadow:0 2px 4px rgba(0,0,0,0.04);}}
+        .chart-box, .chart-grid {{ max-width: 100%; overflow-x: hidden; }}
         .chart-box.full-width {{ margin: 0 10px 25px 10px; width: calc(100% - 20px); }}
         
         .sec-title {{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin:0 0 15px 10px;color:var(--primary)}}
@@ -453,12 +452,21 @@ def genereer_dashboard():
         <div class="header"><h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #ff007f, #00e5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚡ Sportoverzicht Jorden</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         <div class="nav">{nav}</div>{sects}</div>
         <script>
-        function openTab(e,n){{document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));document.getElementById(n).style.display='block';e.currentTarget.classList.add('active');window.scrollTo({{top:0, behavior:'smooth'}});}}
+        function openTab(e,n){{
+            document.querySelectorAll('.tab-content').forEach(x=>x.style.display='none');
+            document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+            document.getElementById(n).style.display='block';
+            e.currentTarget.classList.add('active');
+            window.scrollTo({{top:0, behavior:'smooth'}});
+            
+            // 🔥 DE MAGISCHE FIX VOOR DE GRAFIEKEN BUG:
+            setTimeout(() => {{ window.dispatchEvent(new Event('resize')); }}, 50);
+        }}
         function unlock(){{if(prompt("Wachtwoord:")==='Nala'){{document.querySelectorAll('.hr-blur').forEach(e=>e.classList.remove('hr-blur'));document.querySelector('.lock-btn').style.display='none';}}}}
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V65.0) klaar met TDT Rockets design!")
+        print("✅ Dashboard (V66.0) klaar: Oude jaren schalen nu perfect mee!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
