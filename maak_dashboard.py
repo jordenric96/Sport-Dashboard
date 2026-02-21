@@ -361,7 +361,7 @@ def generate_kpi(lbl, val, icon, diff_html, unit=""):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V70.0 (Perfecte Breedte, 2x2 Hersteld, Legenda's Gefixt)...")
+    print("🚀 Start V71.0 (PWA/Icon en Installatie-knop gefixt!)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
@@ -411,7 +411,18 @@ def genereer_dashboard():
         nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Carrière</button>'
         sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="sec-title" style="color:var(--text);">All-Time Garage</h2>{generate_yearly_gear(df, df, True)}<h3 class="sec-sub">All-Time Records</h3>{generate_hall_of_fame(df)}</div>'
         
-        html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Dashboard</title>
+        # 🔥 HIERONDER STAAN DE NIEUWE LINKS NAAR JE MANIFEST.JSON EN ICON.PNG 🔥
+        html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>⚡ Sportoverzicht</title>
+        
+        <link rel="manifest" href="manifest.json">
+        <link rel="icon" type="image/png" href="icon.png">
+        <link rel="apple-touch-icon" href="icon.png">
+        <meta name="theme-color" content="#0b0914">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
         :root{{--primary:#00e5ff;--bg:#0b0914;--card:#1e1b4b;--text:#f8fafc;--text_light:#94a3b8;}}
@@ -426,9 +437,8 @@ def genereer_dashboard():
         .nav-btn{{font-family:inherit;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer; color:var(--text_light); transition:0.2s; flex-shrink: 0;}}
         .nav-btn.active{{background:linear-gradient(45deg, #ff007f, #00e5ff);color:white; border:none; box-shadow:0 4px 15px rgba(0,229,255,0.2);}}
         
-        /* ZERO extra horizontal margins/padding on wrappers to ensure exact edge-to-edge match */
         .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:12px; margin-bottom:20px; width: 100%;}}
-        .kpi-grid{{grid-template-columns:repeat(2, 1fr);}} /* 2x2 grid is BACK! */
+        .kpi-grid{{grid-template-columns:repeat(2, 1fr);}} 
         @media(min-width:768px){{.kpi-grid{{grid-template-columns:repeat(4, 1fr);}}}}
         .sport-grid, .hof-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
@@ -481,7 +491,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V70.0) klaar: Perfecte edge-to-edge uitlijning & 2x2 grid hersteld!")
+        print("✅ Dashboard (V71.0) klaar: Manifest en icoontje succesvol gekoppeld!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
