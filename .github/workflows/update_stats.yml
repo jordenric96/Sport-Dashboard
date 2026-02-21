@@ -39,7 +39,7 @@ jobs:
         run: python update_activities.py
 
       - name: Run Dashboard Generator
-        run: python dashboard.py
+        run: python maak_dashboard.py
 
       - name: Commit and Push changes
         run: |
