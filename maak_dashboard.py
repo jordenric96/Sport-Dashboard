@@ -244,7 +244,6 @@ def generate_bomb_countdowns(year):
     return html
 
 def generate_virtual_journey(df_yr):
-    # Enkel km's van fietsen en lopen/wandelen
     dist = df_yr[df_yr['Categorie'].isin(['Fiets', 'Zwift', 'Hardlopen', 'Wandelen'])]['Afstand_km'].sum()
     
     milestones = [
@@ -289,7 +288,6 @@ def create_github_calendar(df_yr):
     df_cal = df_yr.dropna(subset=['Datum']).copy()
     if df_cal.empty: return ""
     
-    # Prepareer kalender data (elke dag van het jaar)
     start_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=1, day=1)
     end_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=12, day=31)
     all_days = pd.date_range(start_date, end_date)
@@ -298,25 +296,23 @@ def create_github_calendar(df_yr):
     df_days['Datum_str'] = df_days['Datum'].dt.strftime('%Y-%m-%d')
     df_cal['Datum_str'] = df_cal['Datum'].dt.strftime('%Y-%m-%d')
     
-    # Tel sessies per dag
     daily_counts = df_cal.groupby('Datum_str').size().reset_index(name='Sessies')
     df_days = df_days.merge(daily_counts, on='Datum_str', how='left').fillna(0)
     
     df_days['Week'] = df_days['Datum'].dt.isocalendar().week
-    # Fix voor week 52/53 in januari of week 1 in december
     df_days.loc[(df_days['Datum'].dt.month == 1) & (df_days['Week'] > 50), 'Week'] = 0
     df_days.loc[(df_days['Datum'].dt.month == 12) & (df_days['Week'] < 5), 'Week'] = 53
     
-    df_days['Weekday'] = df_days['Datum'].dt.weekday # 0=Ma, 6=Zo
+    df_days['Weekday'] = df_days['Datum'].dt.weekday 
     
     pivot = df_days.pivot(index='Weekday', columns='Week', values='Sessies').fillna(0)
     
-    # Kleuren: 0=leeg, 1=licht, 2+=donkerder
+    # HIER IS DE FIX: correcte rgba waarden voor de hittekaart in plaats van hex+transparantie
     colorscale = [
         [0.0, 'rgba(255,255,255,0.03)'], 
-        [0.1, COLORS['primary']+'40'], 
-        [0.5, COLORS['primary']+'80'], 
-        [1.0, '#ff007f']
+        [0.1, 'rgba(0, 229, 255, 0.3)'],  # Licht neon blauw
+        [0.5, 'rgba(0, 229, 255, 0.7)'],  # Feller neon blauw
+        [1.0, '#ff007f']                  # Roze top
     ]
     
     days_labels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
@@ -355,12 +351,9 @@ def create_season_radar(df_yr):
         
     df_s['Seizoen'] = df_s['Datum'].dt.month.apply(get_season)
     
-    # Aggregeren per seizoen
     seasons = ['Lente', 'Zomer', 'Herfst', 'Winter']
     stats = df_s.groupby('Seizoen').agg({'Afstand_km':'sum', 'Beweegtijd_sec':'sum', 'Hoogte':'sum'}).reindex(seasons).fillna(0)
     
-    # Radar charts hebben normalisatie nodig anders zie je hoogte (m) en tijd (uren) niet goed samen.
-    # We normaliseren alles naar een schaal van 0-100 voor de vorm, maar tonen echte waarden in hover.
     max_dist = stats['Afstand_km'].max() or 1
     max_tijd = stats['Beweegtijd_sec'].max() or 1
     max_hoogte = stats['Hoogte'].max() or 1
@@ -377,7 +370,7 @@ def create_season_radar(df_yr):
             (stats.loc[s, 'Beweegtijd_sec'] / max_tijd) * 100,
             (stats.loc[s, 'Hoogte'] / max_hoogte) * 100
         ]
-        r_vals.append(r_vals[0]) # Sluit de polygoon
+        r_vals.append(r_vals[0]) 
         
         real_vals = [
             f"{stats.loc[s, 'Afstand_km']:,.0f} km",
@@ -593,7 +586,7 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V74.0 (Virtuele Reis, Bicky Calculator, Kalender & Radar)...")
+    print("🚀 Start V74.1 (Bugfix colorscale kalender)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -740,7 +733,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V74.0) klaar: Gamificatie features met succes toegevoegd!")
+        print("✅ Dashboard (V74.1) klaar: De kalender laadt nu perfect!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
