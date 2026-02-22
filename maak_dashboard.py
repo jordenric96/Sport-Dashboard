@@ -178,6 +178,73 @@ def generate_streaks_box(df):
         </div>
     </div>"""
 
+def generate_bomb_countdowns(year):
+    if year != datetime.now().year: return ""
+    
+    # Doelenlijst (maand-dag)
+    goals = [
+        {"date": "03-28", "type": "Fietsen", "name": "Pajotse Parel"},
+        {"date": "05-09", "type": "Wandelen", "name": "Coast Walk"},
+        {"date": "06-06", "type": "Fietsen", "name": "Rit Gooik + BBQ"},
+        {"date": "07-11", "type": "Fietsen", "name": "Vlaamse Ardennen"},
+        {"date": "08-08", "type": "Fietsen", "name": "Roubaix"}
+    ]
+    
+    today = datetime.now().date()
+    start_of_year = datetime(year, 1, 1).date()
+    
+    html = '<div class="streaks-section" style="margin-top:20px;"><h3 class="box-title" style="color:#facc15;">🧨 MISSIES & DOELEN (BOOM!)</h3><div style="display:flex; flex-direction:column; gap:12px;">'
+    
+    for g in goals:
+        month, day = map(int, g['date'].split('-'))
+        target_date = datetime(year, month, day).date()
+        days_left = (target_date - today).days
+        
+        icon = '🚴' if g['type'].lower() == 'fietsen' else '🚶'
+        
+        if days_left > 0:
+            total_duration = (target_date - start_of_year).days
+            days_passed = (today - start_of_year).days
+            if total_duration <= 0: total_duration = 1
+            pct = max(0, min(100, (days_passed / total_duration) * 100))
+            
+            status_text = f"<span style='color:var(--primary); font-weight:700;'>Nog {days_left} d</span>"
+            
+            # De bom schuift over de lont naarmate de datum dichterbij komt
+            fuse_html = f"""
+            <div style="margin-top:14px; height:4px; background:rgba(255,255,255,0.05); border-radius:2px; position:relative; width:100%;">
+                <div style="position:absolute; left:{pct}%; width:{100-pct}%; height:100%; background:linear-gradient(90deg, #facc15, #ef4444); border-radius:2px; box-shadow:0 0 6px #ef4444;"></div>
+                <div style="position:absolute; left:calc({pct}% - 8px); top:-10px; font-size:16px; filter:drop-shadow(0 0 4px #facc15); z-index:2;">💣</div>
+            </div>
+            """
+        elif days_left == 0:
+            status_text = "<span style='color:#ef4444; font-weight:800; animation: blink 1s infinite;'>💥 VANDAAG! BOOM! 💥</span>"
+            fuse_html = ""
+        else:
+            status_text = "<span style='color:#10b981; font-weight:700;'>✅ Ontploft & Voltooid 💥</span>"
+            fuse_html = ""
+            
+        date_str = f"{day:02d}-{month:02d}"
+        
+        html += f"""
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:14px; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:20px;">{icon}</span>
+                    <div style="display:flex; flex-direction:column;">
+                        <strong style="color:var(--text); font-size:14px; line-height:1.2;">{g['name']}</strong>
+                        <span style="font-size:11px; color:var(--text_light); margin-top:2px;">{date_str}</span>
+                    </div>
+                </div>
+                <div style="font-size:14px; text-align:right;">{status_text}</div>
+            </div>
+            {fuse_html}
+        </div>
+        """
+        
+    html += '</div></div>'
+    return html
+
 def create_monthly_charts(df_cur, df_prev, year):
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     def get_m(df, cats): return df[df['Categorie'].isin(cats)].groupby(df['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
@@ -368,10 +435,9 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V72.1 (Hoogtemeters kolomnaam gefixt)...")
+    print("🚀 Start V73.0 (Met Bom Doelen!)...")
     try:
         df = pd.read_csv('activities.csv')
-        # HIER ZAT DE FOUT: 'Totaal stijgen' is vervangen door 'Hoogtemeters'
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
               'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 
               'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 
@@ -399,6 +465,8 @@ def genereer_dashboard():
             df_prev_comp = df_prev[df_prev['Day'] <= ytd] if yr == datetime.now().year else df_prev
             
             streaks_html = generate_streaks_box(df) if yr == datetime.now().year else ""
+            goals_html = generate_bomb_countdowns(yr)
+            
             cal_yr = df_yr['Calorieën'].sum() if 'Calorieën' in df_yr.columns else 0
             cal_prev = df_prev_comp['Calorieën'].sum() if 'Calorieën' in df_prev_comp.columns and not df_prev_comp.empty else 0
             
@@ -411,6 +479,7 @@ def genereer_dashboard():
                     {generate_kpi("Energie", f"{cal_yr:,.0f}", "🔥", format_diff_html(cal_yr, cal_prev, "kcal"), unit="kcal")}
                 </div>
                 {streaks_html}
+                {goals_html}
                 {create_ytd_chart(df, yr)}
                 <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
                 <h3 class="sec-sub">Materiaal {yr}</h3>{generate_yearly_gear(df_yr, df)}
@@ -482,6 +551,8 @@ def genereer_dashboard():
         .streak-row{{display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--text); margin-bottom:4px;}}
         .streak-sub{{font-size:11px;color:var(--text_light);}}
         .icon-circle{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}}
+        
+        @keyframes blink {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0; }} }}
         </style></head><body><div class="container">
         <div class="header"><h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin:0; background: -webkit-linear-gradient(45deg, #ff007f, #00e5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚡ Sportoverzicht</h1><button class="lock-btn" onclick="unlock()">❤️ 🔒</button></div>
         <div class="nav">{nav}</div>{sects}</div>
@@ -505,7 +576,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V72.1) klaar: Data ingeladen via de kolom 'Hoogtemeters'!")
+        print("✅ Dashboard (V73.0) klaar: Doelen met bom-lont toegevoegd!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
