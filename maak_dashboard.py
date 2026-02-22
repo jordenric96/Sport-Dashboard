@@ -193,7 +193,7 @@ def generate_bomb_countdowns(year):
     today = datetime.now().date()
     start_of_year = datetime(year, 1, 1).date()
     
-    html = '<div class="streaks-section" style="margin-top:20px;"><h3 class="box-title" style="color:#facc15;">🧨 MISSIES & DOELEN (BOOM!)</h3><div style="display:flex; flex-direction:column; gap:12px;">'
+    html = '<div class="streaks-section" style="margin-top:20px;"><h3 class="box-title" style="color:#facc15;">🧨 Doelen </h3><div style="display:flex; flex-direction:column; gap:12px;">'
     
     for g in goals:
         month, day = map(int, g['date'].split('-'))
