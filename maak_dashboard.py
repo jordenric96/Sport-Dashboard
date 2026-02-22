@@ -116,13 +116,14 @@ def create_ytd_chart(df, current_year):
         ))
         
     fig.update_layout(
-        title='📈 Aantal km\'s', 
+        title='📈 Aantal km\'s (Cumulatief)', 
         template='plotly_dark', 
-        margin=dict(t=50, b=60, l=0, r=10),
+        margin=dict(t=50, b=40, l=0, r=0), # Marges geminimaliseerd
         height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(title="", showgrid=False, fixedrange=True), 
-        yaxis=dict(title="", showgrid=True, gridcolor='rgba(255,255,255,0.05)', fixedrange=True, side="right"), 
-        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), 
+        # Labels naar binnen verplaatst voor meer breedte
+        yaxis=dict(title="", showgrid=True, gridcolor='rgba(255,255,255,0.05)', fixedrange=True, side="right", ticklabelposition="inside", tickfont=dict(color=COLORS['text_light'])), 
+        legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"), 
         font=dict(color='#94a3b8')
     )
     return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
@@ -284,61 +285,6 @@ def generate_virtual_journey(df_yr):
     """
     return html
 
-def create_github_calendar(df_yr):
-    df_cal = df_yr.dropna(subset=['Datum']).copy()
-    if df_cal.empty: return ""
-    
-    start_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=1, day=1)
-    end_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=12, day=31)
-    all_days = pd.date_range(start_date, end_date)
-    
-    df_days = pd.DataFrame({'Datum': all_days})
-    df_days['Datum_str'] = df_days['Datum'].dt.strftime('%Y-%m-%d')
-    df_cal['Datum_str'] = df_cal['Datum'].dt.strftime('%Y-%m-%d')
-    
-    daily_counts = df_cal.groupby('Datum_str').size().reset_index(name='Sessies')
-    df_days = df_days.merge(daily_counts, on='Datum_str', how='left').fillna(0)
-    
-    df_days['Week'] = df_days['Datum'].dt.isocalendar().week
-    df_days.loc[(df_days['Datum'].dt.month == 1) & (df_days['Week'] > 50), 'Week'] = 0
-    df_days.loc[(df_days['Datum'].dt.month == 12) & (df_days['Week'] < 5), 'Week'] = 53
-    
-    df_days['Weekday'] = df_days['Datum'].dt.weekday 
-    
-    pivot = df_days.pivot(index='Weekday', columns='Week', values='Sessies').fillna(0)
-    
-    # HIER IS DE FIX: correcte rgba waarden voor de hittekaart in plaats van hex+transparantie
-    colorscale = [
-        [0.0, 'rgba(255,255,255,0.03)'], 
-        [0.1, 'rgba(0, 229, 255, 0.3)'],  # Licht neon blauw
-        [0.5, 'rgba(0, 229, 255, 0.7)'],  # Feller neon blauw
-        [1.0, '#ff007f']                  # Roze top
-    ]
-    
-    days_labels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
-    
-    fig = go.Figure(data=go.Heatmap(
-        z=pivot.values,
-        x=pivot.columns,
-        y=days_labels,
-        colorscale=colorscale,
-        showscale=False,
-        xgap=3, ygap=3,
-        hoverinfo='text',
-        text=[[f"{val} sessies" for val in row] for row in pivot.values]
-    ))
-    
-    fig.update_layout(
-        title='🟩 Consistentie Kalender', 
-        template='plotly_dark',
-        margin=dict(t=50,b=20,l=30,r=10), 
-        height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, fixedrange=True),
-        yaxis=dict(showgrid=False, zeroline=False, autorange='reversed', fixedrange=True),
-        font=dict(color='#94a3b8')
-    )
-    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
-
 def create_season_radar(df_yr):
     df_s = df_yr.copy()
     if df_s.empty: return ""
@@ -360,7 +306,8 @@ def create_season_radar(df_yr):
     
     fig = go.Figure()
     
-    colors = {'Lente': '#10b981', 'Zomer': '#facc15', 'Herfst': '#fb923c', 'Winter': '#00e5ff'}
+    # Felle NEON kleuren
+    colors = {'Lente': '#39ff14', 'Zomer': '#ffff00', 'Herfst': '#ff5f1f', 'Winter': '#00ffff'}
     
     for s in seasons:
         if stats.loc[s, 'Afstand_km'] == 0: continue
@@ -382,14 +329,22 @@ def create_season_radar(df_yr):
         theta = ['Afstand', 'Tijd', 'Hoogtemeters', 'Afstand']
         
         fig.add_trace(go.Scatterpolar(
-            r=r_vals, theta=theta, fill='toself', name=s, 
-            line_color=colors[s], opacity=0.6,
+            r=r_vals, theta=theta, 
+            mode='lines+markers', # Alleen lijnen en markers
+            name=s, 
+            line=dict(color=colors[s], width=3), # Dikkere neon lijnen
+            marker=dict(size=6, color=colors[s]),
+            opacity=0.9,
             hoverinfo='text', text=real_vals
         ))
         
     fig.update_layout(
-        title='🍂 Seizoens-profiel', template='plotly_dark',
-        polar=dict(radialaxis=dict(visible=False, range=[0, 100]), bgcolor='rgba(0,0,0,0)'),
+        title='🍂 Seizoens-profiel (Neon)', template='plotly_dark',
+        polar=dict(
+            radialaxis=dict(visible=False, range=[0, 100]), 
+            bgcolor='rgba(0,0,0,0)',
+            angularaxis=dict(linecolor='rgba(255,255,255,0.1)', gridcolor='rgba(255,255,255,0.1)')
+        ),
         margin=dict(t=50,b=30,l=30,r=30), height=300, 
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         font=dict(color='#94a3b8')
@@ -586,7 +541,7 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V74.1 (Bugfix colorscale kalender)...")
+    print("🚀 Start V75.0 (Kalender weg, YTD breder, Neon Radar)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -635,7 +590,6 @@ def genereer_dashboard():
                 </div>
                 {streaks_html}
                 {goals_html}
-                {create_github_calendar(df_yr)}
                 {create_ytd_chart(df, yr)}
                 <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
                 <h3 class="sec-sub">Materiaal {yr}</h3>{generate_yearly_gear(df_yr, df)}
@@ -733,7 +687,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V74.1) klaar: De kalender laadt nu perfect!")
+        print("✅ Dashboard (V75.0) klaar: Kalender weg, YTD breder, Neon Radar.")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
