@@ -119,6 +119,7 @@ def process_data():
             'Naam activiteit': a['name'],
             'Activiteitstype': sport_type,
             'Afstand': a['distance'] / 1000,
+            'Hoogtemeters': a.get('total_elevation_gain', 0),
             'Beweegtijd': a['moving_time'],
             'Gemiddelde snelheid': a['average_speed'] * 3.6,
             'Gemiddelde hartslag': a.get('average_heartrate', ''),
