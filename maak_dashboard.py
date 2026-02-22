@@ -32,6 +32,12 @@ COLORS = {
     'z1': '#a3e635', 'z2': '#facc15', 'z3': '#fb923c', 'z4': '#f87171', 'z5': '#ef4444'
 }
 
+CAT_COLORS = {
+    'Fiets': COLORS['bike_out'], 'Zwift': COLORS['zwift'], 'Hardlopen': COLORS['run'],
+    'Wandelen': COLORS['walk'], 'Padel': COLORS['padel'], 'Zwemmen': COLORS['swim'],
+    'Krachttraining': COLORS['strength'], 'Overig': COLORS['default']
+}
+
 YEAR_COLORS = ['#ff007f', '#00e5ff', '#facc15', '#a855f7', '#10b981']
 
 # --- DATUM FIX ---
@@ -246,7 +252,6 @@ def generate_bomb_countdowns(year):
 def generate_virtual_journey(df_yr):
     dist = df_yr[df_yr['Categorie'].isin(['Fiets', 'Zwift', 'Hardlopen', 'Wandelen'])]['Afstand_km'].sum()
     
-    # Nieuwe lijst vanaf Gooik tot 6000 km
     milestones = [
         ("🇧🇪 Gooik", 0), 
         ("🇫🇷 Parijs", 250), 
@@ -260,7 +265,6 @@ def generate_virtual_journey(df_yr):
         ("🇺🇸 New York", 6000)
     ]
     
-    # Bepaal welke plaatsen we al voorbij zijn
     passed = [m[0] for m in milestones if dist >= m[1]]
     passed_str = ", ".join(passed) if passed else "Nog nergens"
     
@@ -315,7 +319,6 @@ def create_season_radar(df_yr):
     df_s['Seizoen'] = df_s['Datum'].dt.month.apply(get_season)
     
     seasons = ['Lente', 'Zomer', 'Herfst', 'Winter']
-    # Aantal sessies meenemen
     stats = df_s.groupby('Seizoen').agg({'Afstand_km':'sum', 'Beweegtijd_sec':'sum', 'Hoogte':'sum', 'Datum':'count'}).rename(columns={'Datum':'Sessies'}).reindex(seasons).fillna(0)
     
     max_dist = stats['Afstand_km'].max() or 1
@@ -325,13 +328,11 @@ def create_season_radar(df_yr):
     
     fig = go.Figure()
     
-    # Felle NEON kleuren
     colors = {'Lente': '#39ff14', 'Zomer': '#ffff00', 'Herfst': '#ff5f1f', 'Winter': '#00ffff'}
     
     for s in seasons:
         if stats.loc[s, 'Sessies'] == 0: continue
         
-        # We plotten nu op 4 assen (Afstand, Tijd, Hoogte, Sessies)
         r_vals = [
             (stats.loc[s, 'Afstand_km'] / max_dist) * 100,
             (stats.loc[s, 'Beweegtijd_sec'] / max_tijd) * 100,
@@ -358,7 +359,7 @@ def create_season_radar(df_yr):
             marker=dict(size=6, color=colors[s]),
             opacity=0.9,
             hoverinfo='text', text=real_vals,
-            showlegend=True # Geforceerd aanzetten van legende
+            showlegend=True
         ))
         
     fig.update_layout(
@@ -368,10 +369,10 @@ def create_season_radar(df_yr):
             bgcolor='rgba(0,0,0,0)',
             angularaxis=dict(linecolor='rgba(255,255,255,0.1)', gridcolor='rgba(255,255,255,0.1)')
         ),
-        margin=dict(t=50,b=60,l=30,r=30), height=320, # Extra marge onderaan voor legende
+        margin=dict(t=50,b=60,l=30,r=30), height=320, 
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         font=dict(color='#94a3b8'),
-        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center") # Legende onderaan gecentreerd
+        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center")
     )
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
@@ -391,6 +392,42 @@ def create_monthly_charts(df_cur, df_prev, year):
     fr.add_trace(go.Bar(x=months, y=cr, name=f"{year}", marker_color=COLORS['run']))
     fr.update_layout(title='🏃 Hardlopen (km)', template='plotly_dark', barmode='group', margin=dict(t=50,b=60,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True, gridcolor='rgba(255,255,255,0.05)'), font=dict(color='#94a3b8'))
     return f'<div class="chart-grid"><div class="chart-box">{fb.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div><div class="chart-box">{fr.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
+
+def create_all_time_charts(df):
+    # Prepareer data gegroepeerd per jaar en sport
+    df_trend = df.groupby(['Jaar', 'Categorie']).agg(
+        Afstand=('Afstand_km', 'sum'),
+        Uren=('Beweegtijd_sec', lambda x: sum(x)/3600),
+        Sessies=('Datum', 'count')
+    ).reset_index().sort_values('Jaar')
+    
+    if df_trend.empty: return ""
+    
+    # 1. Totaal Kilometers per jaar per sport
+    fig_dist = px.bar(df_trend, x='Jaar', y='Afstand', color='Categorie', title='📈 Evolutie: Kilometers',
+                      color_discrete_map=CAT_COLORS, template='plotly_dark', barmode='stack')
+    fig_dist.update_layout(margin=dict(t=50,b=40,l=0,r=0), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                           xaxis=dict(title="", tickmode='linear'), yaxis=dict(title="", gridcolor='rgba(255,255,255,0.05)'),
+                           legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"), font=dict(color='#94a3b8'))
+    
+    # 2. Totaal Sessies per jaar per sport
+    fig_sess = px.bar(df_trend, x='Jaar', y='Sessies', color='Categorie', title='👟 Evolutie: Sessies',
+                      color_discrete_map=CAT_COLORS, template='plotly_dark', barmode='stack')
+    fig_sess.update_layout(margin=dict(t=50,b=40,l=0,r=0), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                           xaxis=dict(title="", tickmode='linear'), yaxis=dict(title="", gridcolor='rgba(255,255,255,0.05)'),
+                           showlegend=False, font=dict(color='#94a3b8'))
+    
+    # 3. Totaal Uren per jaar per sport
+    fig_hrs = px.bar(df_trend, x='Jaar', y='Uren', color='Categorie', title='⏱️ Evolutie: Uren',
+                     color_discrete_map=CAT_COLORS, template='plotly_dark', barmode='stack')
+    fig_hrs.update_layout(margin=dict(t=50,b=40,l=0,r=0), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                          xaxis=dict(title="", tickmode='linear'), yaxis=dict(title="", gridcolor='rgba(255,255,255,0.05)'),
+                          showlegend=False, font=dict(color='#94a3b8'))
+
+    html = f'<div class="chart-box full-width">{fig_dist.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
+    html += f'<div class="chart-grid"><div class="chart-box">{fig_sess.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
+    html += f'<div class="chart-box">{fig_hrs.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div></div>'
+    return html
 
 def create_heatmap(df_yr):
     df_hm = df_yr.copy(); df_hm['Uur'] = df_hm['Datum'].dt.hour; df_hm['Weekdag'] = df_hm['Datum'].dt.day_name()
@@ -457,14 +494,14 @@ def generate_sport_cards(df_yr, df_prev_comp):
         spd = f"{(d/(t/3600)):.1f} km/u" if t > 0 and cat not in ['Padel','Krachttraining'] else "-"
         if cat == 'Hardlopen' and d > 0: spd = f"{int((t/d)//60)}:{int((t/d)%60):02d} /km"
         
-        rows = f"""<div class="stat-row"><span>Sessies</span><div class="val-group"><strong>{n}</strong>{format_diff_html(n,np)}</div></div>
-                   <div class="stat-row"><span>Tijd</span><div class="val-group"><strong>{format_time(t)}</strong>{format_diff_html(t/3600,tp/3600,"u")}</div></div>"""
+        rows = f"""<div class="stat-row"><span>Sessies</span><div class="val-group"><strong>{n}</strong>{format_diff_html(n,np) if df_prev_comp is not None else ''}</div></div>
+                   <div class="stat-row"><span>Tijd</span><div class="val-group"><strong>{format_time(t)}</strong>{format_diff_html(t/3600,tp/3600,"u") if df_prev_comp is not None else ''}</div></div>"""
         
         if cat not in ['Padel','Krachttraining']: 
-            rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp)}</div></div>
+            rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp) if df_prev_comp is not None else ''}</div></div>
                         <div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
             if elev > 0:
-                rows += f"""<div class="stat-row"><span>Hoogte</span><div class="val-group"><strong>{elev:,.0f} m+</strong>{format_diff_html(elev,elevp,"m")}</div></div>"""
+                rows += f"""<div class="stat-row"><span>Hoogte</span><div class="val-group"><strong>{elev:,.0f} m+</strong>{format_diff_html(elev,elevp,"m") if df_prev_comp is not None else ''}</div></div>"""
         
         if pd.notna(wt) and wt>0: rows += f'<div class="stat-row"><span>Wattage</span><strong>⚡ {wt:.0f} W</strong></div>'
         if pd.notna(hr) and hr>0: rows += f'<div class="stat-row"><span>Hartslag</span><strong class="secure-hr" data-hr="{hr:.0f}">❤️ ***</strong></div>'
@@ -565,7 +602,7 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V76.0 (Virtuele Reis vanuit Gooik, Radar met Sessies & Legende)...")
+    print("🚀 Start V77.0 (Actieve Dagen, Reis in alle jaren, TOTAAL pagina)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -596,12 +633,17 @@ def genereer_dashboard():
             
             streaks_html = generate_streaks_box(df) if yr == datetime.now().year else ""
             goals_html = generate_bomb_countdowns(yr)
-            journey_html = generate_virtual_journey(df_yr) if yr == datetime.now().year else ""
+            journey_html = generate_virtual_journey(df_yr) 
             
             cal_yr = df_yr['Calorieën'].sum() if 'Calorieën' in df_yr.columns else 0
             cal_prev = df_prev_comp['Calorieën'].sum() if 'Calorieën' in df_prev_comp.columns and not df_prev_comp.empty else 0
             bickys = int(cal_yr / BICKY_KCAL) if cal_yr > 0 else 0
-            bicky_html = f"<div style='font-size:11px; color:var(--gold); margin-top:6px; font-weight:700;'>🍔 Gelijk aan {bickys} Bicky Cheese's!</div>"
+            bicky_html = f"<div style='font-size:11px; color:var(--gold); margin-top:6px; font-weight:700;'>🍔 Gelijk aan {bickys} Bicky's!</div>"
+            
+            act_d_yr = len(df_yr['Datum'].dt.date.unique())
+            act_d_prev = len(df_prev_comp['Datum'].dt.date.unique()) if not df_prev_comp.empty else 0
+            pct_yr = (act_d_yr / (366 if yr % 4 == 0 else 365)) * 100
+            extra_act = f"<div style='font-size:11px; color:var(--primary); margin-top:6px; font-weight:700;'>📅 {pct_yr:.1f}% v/h jaar actief!</div>"
             
             sects += f"""<div id="v-{yr}" class="tab-content" style="display:{"block" if yr == datetime.now().year else "none"}">
                 {journey_html}
@@ -611,6 +653,7 @@ def genereer_dashboard():
                     {generate_kpi("Hoogte", f"{df_yr['Hoogte'].sum():,.0f}", "🏔️", format_diff_html(df_yr['Hoogte'].sum(), df_prev_comp['Hoogte'].sum(), "m"), unit="m+")}
                     {generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️", format_diff_html(df_yr['Beweegtijd_sec'].sum()/3600, df_prev_comp['Beweegtijd_sec'].sum()/3600, "u"))}
                     {generate_kpi("Energie", f"{cal_yr:,.0f}", "🔥", format_diff_html(cal_yr, cal_prev, "kcal"), unit="kcal", extra_html=bicky_html)}
+                    {generate_kpi("Actieve Dagen", act_d_yr, "📅", format_diff_html(act_d_yr, act_d_prev), extra_html=extra_act)}
                 </div>
                 {streaks_html}
                 {goals_html}
@@ -627,8 +670,37 @@ def genereer_dashboard():
             </div>"""
             nav += f'<button class="nav-btn {"active" if yr == datetime.now().year else ""}" onclick="openTab(event, \'v-{yr}\')">{yr}</button>'
             
-        nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Carrière</button>'
-        sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="sec-title" style="color:var(--text);">All-Time Garage</h2>{generate_yearly_gear(df, df, True)}<h3 class="sec-sub">All-Time Records</h3>{generate_hall_of_fame(df)}</div>'
+        nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">TOTAAL</button>'
+        
+        # --- GENERATE TOTAAL TAB ---
+        cal_tot = df['Calorieën'].sum() if 'Calorieën' in df.columns else 0
+        bickys_tot = int(cal_tot / BICKY_KCAL) if cal_tot > 0 else 0
+        bicky_html_tot = f"<div style='font-size:11px; color:var(--gold); margin-top:6px; font-weight:700;'>🍔 Gelijk aan {bickys_tot} Bicky's!</div>"
+        act_d_tot = len(df['Datum'].dt.date.unique())
+        
+        sects += f"""<div id="v-Tot" class="tab-content" style="display:none">
+            <h2 class="sec-title" style="color:var(--text); text-align:center; font-size:32px; margin-bottom:20px;">🌟 ALL-TIME STATS 🌟</h2>
+            <div class="kpi-grid" style="margin-bottom:30px;">
+                {generate_kpi("Totaal Sessies", len(df), "👟", "")}
+                {generate_kpi("Totaal Afstand", f"{df['Afstand_km'].sum():,.0f}", "📏", "", unit="km")}
+                {generate_kpi("Totaal Hoogte", f"{df['Hoogte'].sum():,.0f}", "🏔️", "", unit="m+")}
+                {generate_kpi("Totaal Tijd", format_time(df['Beweegtijd_sec'].sum()), "⏱️", "")}
+                {generate_kpi("Totaal Energie", f"{cal_tot:,.0f}", "🔥", "", unit="kcal", extra_html=bicky_html_tot)}
+                {generate_kpi("Totaal Dagen Actief", act_d_tot, "📅", "")}
+            </div>
+            
+            <h3 class="sec-sub">All-Time Per Sport</h3>
+            {generate_sport_cards(df, None)}
+            
+            <h3 class="sec-sub">Lange Termijn Evolutie</h3>
+            {create_all_time_charts(df)}
+            
+            <h3 class="sec-sub">All-Time Garage</h3>
+            {generate_yearly_gear(df, df, True)}
+            
+            <h3 class="sec-sub">All-Time Hall of Fame</h3>
+            {generate_hall_of_fame(df)}
+        </div>"""
         
         html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -711,7 +783,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V76.0) klaar: Jouw reis start nu vanuit Gooik! Radar is een vierkant met legende geworden.")
+        print("✅ Dashboard (V77.0) klaar: Actieve Dagen, Reis overal, vernieuwde TOTAAL-tab met evolutiegrafieken!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
