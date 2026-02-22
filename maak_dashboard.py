@@ -236,6 +236,11 @@ def create_zone_pie(df_yr):
     fig.update_layout(title='❤️ Hartslagzones', template='plotly_dark', margin=dict(t=50,b=40,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
+def generate_kpi(lbl, val, icon, diff_html, unit=""):
+    val_html = f"{val}"
+    if unit: val_html += f' <span style="font-size: 14px; color: var(--text_light); font-weight: 600;">{unit}</span>'
+    return f"""<div class="kpi-card"><div style="display:flex;justify-content:space-between;"><div class="lbl" style="font-size:12px;color:var(--text_light);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">{lbl}</div><div class="icon" style="font-size:18px;">{icon}</div></div><div class="val" style="font-size:26px;font-weight:800;color:var(--text);margin:8px 0; font-variant-numeric: tabular-nums;">{val_html}</div><div style="font-size:13px;">{diff_html}</div></div>"""
+
 def generate_sport_cards(df_yr, df_prev_comp):
     html = '<div class="sport-grid">'
     cp = df_yr['Categorie'].unique(); co = ['Fiets', 'Zwift', 'Hardlopen', 'Krachttraining', 'Padel', 'Wandelen', 'Zwemmen', 'Overig']
@@ -248,6 +253,7 @@ def generate_sport_cards(df_yr, df_prev_comp):
         
         n=len(df_s); np=len(df_p); d=df_s['Afstand_km'].sum(); dp=df_p['Afstand_km'].sum() if not df_p.empty else 0
         t=df_s['Beweegtijd_sec'].sum(); tp=df_p['Beweegtijd_sec'].sum() if not df_p.empty else 0
+        elev=df_s['Hoogte'].sum(); elevp=df_p['Hoogte'].sum() if not df_p.empty else 0
         hr=df_s['Hartslag'].mean(); wt=df_s['Wattage'].mean() if 'Wattage' in df_s.columns else None
         cal = df_s['Calorieën'].sum() if 'Calorieën' in df_s.columns else 0
         
@@ -260,7 +266,9 @@ def generate_sport_cards(df_yr, df_prev_comp):
         if cat not in ['Padel','Krachttraining']: 
             rows += f"""<div class="stat-row"><span>Afstand</span><div class="val-group"><strong>{d:,.0f} km</strong>{format_diff_html(d,dp)}</div></div>
                         <div class="stat-row"><span>Snelheid</span><strong>{spd}</strong></div>"""
-                        
+            if elev > 0:
+                rows += f"""<div class="stat-row"><span>Hoogte</span><div class="val-group"><strong>{elev:,.0f} m+</strong>{format_diff_html(elev,elevp,"m")}</div></div>"""
+        
         if pd.notna(wt) and wt>0: rows += f'<div class="stat-row"><span>Wattage</span><strong>⚡ {wt:.0f} W</strong></div>'
         if pd.notna(hr) and hr>0: rows += f'<div class="stat-row"><span>Hartslag</span><strong class="secure-hr" data-hr="{hr:.0f}">❤️ ***</strong></div>'
         if cal > 0: rows += f'<div class="stat-row"><span>Energie</span><strong>🔥 {cal:,.0f} kcal</strong></div>'
@@ -332,6 +340,7 @@ def generate_hall_of_fame(df):
                 v=row[col]; val=f"{v:.1f} {u}"
                 if pace: val=f"{int((3600/v)//60)}:{int((3600/v)%60):02d} /km"
                 elif u=='W': val=f"{v:.0f} W"
+                elif u=='m+': val=f"{v:,.0f} {u}"
                 
                 r += f"""
                 <div class="top3-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
@@ -339,9 +348,14 @@ def generate_hall_of_fame(df):
                     <span class="date" style="font-size:11px; color:var(--text_light); background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:12px;">{row["Datum"].strftime("%d-%m-%y")}</span>
                 </div>"""
             return r
+        
         secs = f'<div class="hof-sec"><div class="sec-lbl">Langste Afstand</div>{t3("Afstand_km","km")}</div>'
-        if cat == 'Zwift' and 'Wattage' in df_s.columns: secs += f'<div class="hof-sec" style="margin-top:10px;"><div class="sec-lbl">Hoogste Wattage</div>{t3("Wattage","W")}</div>'
-        else: secs += f'<div class="hof-sec" style="margin-top:10px;"><div class="sec-lbl">Snelste Gem.</div>{t3("Gem_Snelheid","km/u",cat=="Hardlopen")}</div>'
+        if 'Hoogte' in df_s.columns and df_s['Hoogte'].sum() > 0:
+            secs += f'<div class="hof-sec" style="margin-top:10px;"><div class="sec-lbl">Meeste Hoogtemeters</div>{t3("Hoogte","m+")}</div>'
+        if cat == 'Zwift' and 'Wattage' in df_s.columns: 
+            secs += f'<div class="hof-sec" style="margin-top:10px;"><div class="sec-lbl">Hoogste Wattage</div>{t3("Wattage","W")}</div>'
+        else: 
+            secs += f'<div class="hof-sec" style="margin-top:10px;"><div class="sec-lbl">Snelste Gem.</div>{t3("Gem_Snelheid","km/u",cat=="Hardlopen")}</div>'
         html += f"""<div class="hof-card"><div class="hof-header" style="color:{color}; font-size:18px; font-weight:700; display:flex; gap:8px; align-items:center; margin-bottom:15px;">{icon} {cat}</div>{secs}</div>"""
     return html + '</div>'
 
@@ -352,25 +366,24 @@ def generate_logbook(df):
         rows += f"<tr><td>{r['Datum'].strftime('%d-%m')}</td><td>{get_sport_style(r['Categorie'])[0]}</td><td>{r['Naam']}</td><td align='right'><strong>{km}</strong></td></tr>"
     return f'<div class="chart-box full-width" style="overflow-x:auto;"><table class="log-table" style="min-width:600px;"><thead><tr><th>Datum</th><th>Type</th><th>Naam activiteit</th><th align="right">km</th></tr></thead><tbody>{rows}</tbody></table></div>'
 
-def generate_kpi(lbl, val, icon, diff_html, unit=""):
-    val_html = f"{val}"
-    if unit:
-        val_html += f' <span style="font-size: 14px; color: var(--text_light); font-weight: 600;">{unit}</span>'
-        
-    return f"""<div class="kpi-card"><div style="display:flex;justify-content:space-between;"><div class="lbl" style="font-size:12px;color:var(--text_light);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">{lbl}</div><div class="icon" style="font-size:18px;">{icon}</div></div><div class="val" style="font-size:26px;font-weight:800;color:var(--text);margin:8px 0; font-variant-numeric: tabular-nums;">{val_html}</div><div style="font-size:13px;">{diff_html}</div></div>"""
-
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V71.0 (PWA/Icon en Installatie-knop gefixt!)...")
+    print("🚀 Start V72.0 (Hoogtemeters toegevoegd)...")
     try:
         df = pd.read_csv('activities.csv')
-        nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 'Calorieën':'Calorieën'}
+        nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
+              'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 
+              'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 
+              'Calorieën':'Calorieën', 'Totaal stijgen':'Hoogte'}
+        
         df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
         
-        for c in ['Afstand_km', 'Beweegtijd_sec', 'Gem_Snelheid', 'Calorieën']:
-            if c in df.columns: df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+        for c in ['Afstand_km', 'Beweegtijd_sec', 'Gem_Snelheid', 'Calorieën', 'Hoogte']:
+            if c in df.columns: 
+                df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
         df['Hartslag'] = pd.to_numeric(df['Hartslag'], errors='coerce')
         if 'Wattage' in df.columns: df['Wattage'] = pd.to_numeric(df['Wattage'], errors='coerce')
+        if 'Hoogte' not in df.columns: df['Hoogte'] = 0
         
         df['Datum'] = df['Datum'].apply(solve_dates); df = df.dropna(subset=['Datum'])
         df['Categorie'] = df.apply(determine_category, axis=1); df['Jaar'] = df['Datum'].dt.year; df['Day'] = df['Datum'].dt.dayofyear
@@ -392,6 +405,7 @@ def genereer_dashboard():
                 <div class="kpi-grid">
                     {generate_kpi("Sessies", len(df_yr), "👟", format_diff_html(len(df_yr), len(df_prev_comp)))}
                     {generate_kpi("Afstand", f"{df_yr['Afstand_km'].sum():,.0f}", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"), unit="km")}
+                    {generate_kpi("Hoogte", f"{df_yr['Hoogte'].sum():,.0f}", "🏔️", format_diff_html(df_yr['Hoogte'].sum(), df_prev_comp['Hoogte'].sum(), "m"), unit="m+")}
                     {generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️", format_diff_html(df_yr['Beweegtijd_sec'].sum()/3600, df_prev_comp['Beweegtijd_sec'].sum()/3600, "u"))}
                     {generate_kpi("Energie", f"{cal_yr:,.0f}", "🔥", format_diff_html(cal_yr, cal_prev, "kcal"), unit="kcal")}
                 </div>
@@ -411,7 +425,6 @@ def genereer_dashboard():
         nav += '<button class="nav-btn" onclick="openTab(event, \'v-Tot\')">Carrière</button>'
         sects += f'<div id="v-Tot" class="tab-content" style="display:none"><h2 class="sec-title" style="color:var(--text);">All-Time Garage</h2>{generate_yearly_gear(df, df, True)}<h3 class="sec-sub">All-Time Records</h3>{generate_hall_of_fame(df)}</div>'
         
-        # 🔥 HIERONDER STAAN DE NIEUWE LINKS NAAR JE MANIFEST.JSON EN ICON.PNG 🔥
         html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>⚡ Sportoverzicht</title>
@@ -439,7 +452,7 @@ def genereer_dashboard():
         
         .kpi-grid, .sport-grid, .hof-grid, .chart-grid {{display:grid; gap:12px; margin-bottom:20px; width: 100%;}}
         .kpi-grid{{grid-template-columns:repeat(2, 1fr);}} 
-        @media(min-width:768px){{.kpi-grid{{grid-template-columns:repeat(4, 1fr);}}}}
+        @media(min-width:768px){{.kpi-grid{{grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));}}}}
         .sport-grid, .hof-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         .chart-grid{{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}}
         
@@ -491,7 +504,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V71.0) klaar: Manifest en icoontje succesvol gekoppeld!")
+        print("✅ Dashboard (V72.0) klaar: Volledig script inclusief Hoogtemeters gegenereerd!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
