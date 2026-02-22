@@ -12,6 +12,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 PLOT_CONFIG = {'displayModeBar': False, 'staticPlot': False, 'scrollZoom': False, 'responsive': True}
 
 HR_ZONES = {'Z1 Herstel': 135, 'Z2 Duur': 152, 'Z3 Tempo': 168, 'Z4 Drempel': 180, 'Z5 Max': 220}
+BICKY_KCAL = 550 # Aantal kcal in een Bicky Cheese
 
 # TDT ROCKETS DARK MODE THEMA
 COLORS = {
@@ -181,9 +182,8 @@ def generate_streaks_box(df):
 def generate_bomb_countdowns(year):
     if year != datetime.now().year: return ""
     
-    # Doelenlijst (maand-dag)
     goals = [
-        {"date": "03-28", "type": "Fietsen", "name": "Parel van het Pajottenland"},
+        {"date": "03-28", "type": "Fietsen", "name": "Pajotse Parel"},
         {"date": "05-09", "type": "Wandelen", "name": "Coast Walk"},
         {"date": "06-06", "type": "Fietsen", "name": "Rit Gooik + BBQ"},
         {"date": "07-11", "type": "Fietsen", "name": "Vlaamse Ardennen"},
@@ -193,7 +193,7 @@ def generate_bomb_countdowns(year):
     today = datetime.now().date()
     start_of_year = datetime(year, 1, 1).date()
     
-    html = '<div class="streaks-section" style="margin-top:20px;"><h3 class="box-title" style="color:#facc15;">🧨 Doelen </h3><div style="display:flex; flex-direction:column; gap:12px;">'
+    html = '<div class="streaks-section" style="margin-top:20px;"><h3 class="box-title" style="color:#facc15;">🧨 MISSIES & DOELEN (BOOM!)</h3><div style="display:flex; flex-direction:column; gap:12px;">'
     
     for g in goals:
         month, day = map(int, g['date'].split('-'))
@@ -209,8 +209,6 @@ def generate_bomb_countdowns(year):
             pct = max(0, min(100, (days_passed / total_duration) * 100))
             
             status_text = f"<span style='color:var(--primary); font-weight:700;'>Nog {days_left} d</span>"
-            
-            # De bom schuift over de lont naarmate de datum dichterbij komt
             fuse_html = f"""
             <div style="margin-top:14px; height:4px; background:rgba(255,255,255,0.05); border-radius:2px; position:relative; width:100%;">
                 <div style="position:absolute; left:{pct}%; width:{100-pct}%; height:100%; background:linear-gradient(90deg, #facc15, #ef4444); border-radius:2px; box-shadow:0 0 6px #ef4444;"></div>
@@ -245,6 +243,166 @@ def generate_bomb_countdowns(year):
     html += '</div></div>'
     return html
 
+def generate_virtual_journey(df_yr):
+    # Enkel km's van fietsen en lopen/wandelen
+    dist = df_yr[df_yr['Categorie'].isin(['Fiets', 'Zwift', 'Hardlopen', 'Wandelen'])]['Afstand_km'].sum()
+    
+    milestones = [
+        ("🇧🇪 Brussel", 0), ("🇫🇷 Parijs", 300), ("🏔️ Mont Ventoux", 1000), 
+        ("🇮🇹 Rome", 1500), ("🇬🇷 Athene", 2500), ("🇳🇴 Noordkaap", 4000), ("🌍 De Wereld Rond", 10000)
+    ]
+    
+    current_m = milestones[0]
+    next_m = milestones[1]
+    
+    for i in range(len(milestones)-1):
+        if dist >= milestones[i][1] and dist < milestones[i+1][1]:
+            current_m = milestones[i]
+            next_m = milestones[i+1]
+            break
+            
+    if dist >= milestones[-1][1]:
+        current_m = milestones[-1]
+        next_m = milestones[-1]
+        
+    pct = 100 if current_m == next_m else ((dist - current_m[1]) / (next_m[1] - current_m[1])) * 100
+    pct = min(100, max(0, pct))
+    
+    html = f"""
+    <div class="streaks-section" style="margin-bottom:20px; background:linear-gradient(145deg, #151236, #0b0914);">
+        <h3 class="box-title">🌍 DE VIRTUELE REIS</h3>
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:13px; font-weight:600; color:var(--text);">{current_m[0]}</span>
+            <span style="font-size:13px; font-weight:600; color:var(--text_light);">{next_m[0]}</span>
+        </div>
+        <div style="height:12px; background:rgba(255,255,255,0.05); border-radius:6px; position:relative; overflow:hidden;">
+            <div style="position:absolute; left:0; top:0; height:100%; width:{pct}%; background:linear-gradient(90deg, var(--primary), #ff007f); border-radius:6px;"></div>
+        </div>
+        <div style="text-align:center; font-size:11px; color:var(--text_light); margin-top:8px;">
+            Je bent voorbij {current_m[0]}! Nog <strong>{(next_m[1] - dist):,.0f} km</strong> tot {next_m[0]}.
+        </div>
+    </div>
+    """
+    return html
+
+def create_github_calendar(df_yr):
+    df_cal = df_yr.dropna(subset=['Datum']).copy()
+    if df_cal.empty: return ""
+    
+    # Prepareer kalender data (elke dag van het jaar)
+    start_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=1, day=1)
+    end_date = pd.Timestamp(year=df_cal['Jaar'].iloc[0], month=12, day=31)
+    all_days = pd.date_range(start_date, end_date)
+    
+    df_days = pd.DataFrame({'Datum': all_days})
+    df_days['Datum_str'] = df_days['Datum'].dt.strftime('%Y-%m-%d')
+    df_cal['Datum_str'] = df_cal['Datum'].dt.strftime('%Y-%m-%d')
+    
+    # Tel sessies per dag
+    daily_counts = df_cal.groupby('Datum_str').size().reset_index(name='Sessies')
+    df_days = df_days.merge(daily_counts, on='Datum_str', how='left').fillna(0)
+    
+    df_days['Week'] = df_days['Datum'].dt.isocalendar().week
+    # Fix voor week 52/53 in januari of week 1 in december
+    df_days.loc[(df_days['Datum'].dt.month == 1) & (df_days['Week'] > 50), 'Week'] = 0
+    df_days.loc[(df_days['Datum'].dt.month == 12) & (df_days['Week'] < 5), 'Week'] = 53
+    
+    df_days['Weekday'] = df_days['Datum'].dt.weekday # 0=Ma, 6=Zo
+    
+    pivot = df_days.pivot(index='Weekday', columns='Week', values='Sessies').fillna(0)
+    
+    # Kleuren: 0=leeg, 1=licht, 2+=donkerder
+    colorscale = [
+        [0.0, 'rgba(255,255,255,0.03)'], 
+        [0.1, COLORS['primary']+'40'], 
+        [0.5, COLORS['primary']+'80'], 
+        [1.0, '#ff007f']
+    ]
+    
+    days_labels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=pivot.values,
+        x=pivot.columns,
+        y=days_labels,
+        colorscale=colorscale,
+        showscale=False,
+        xgap=3, ygap=3,
+        hoverinfo='text',
+        text=[[f"{val} sessies" for val in row] for row in pivot.values]
+    ))
+    
+    fig.update_layout(
+        title='🟩 Consistentie Kalender', 
+        template='plotly_dark',
+        margin=dict(t=50,b=20,l=30,r=10), 
+        height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, fixedrange=True),
+        yaxis=dict(showgrid=False, zeroline=False, autorange='reversed', fixedrange=True),
+        font=dict(color='#94a3b8')
+    )
+    return f'<div class="chart-box full-width">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
+
+def create_season_radar(df_yr):
+    df_s = df_yr.copy()
+    if df_s.empty: return ""
+    
+    def get_season(month):
+        if month in [3, 4, 5]: return 'Lente'
+        elif month in [6, 7, 8]: return 'Zomer'
+        elif month in [9, 10, 11]: return 'Herfst'
+        else: return 'Winter'
+        
+    df_s['Seizoen'] = df_s['Datum'].dt.month.apply(get_season)
+    
+    # Aggregeren per seizoen
+    seasons = ['Lente', 'Zomer', 'Herfst', 'Winter']
+    stats = df_s.groupby('Seizoen').agg({'Afstand_km':'sum', 'Beweegtijd_sec':'sum', 'Hoogte':'sum'}).reindex(seasons).fillna(0)
+    
+    # Radar charts hebben normalisatie nodig anders zie je hoogte (m) en tijd (uren) niet goed samen.
+    # We normaliseren alles naar een schaal van 0-100 voor de vorm, maar tonen echte waarden in hover.
+    max_dist = stats['Afstand_km'].max() or 1
+    max_tijd = stats['Beweegtijd_sec'].max() or 1
+    max_hoogte = stats['Hoogte'].max() or 1
+    
+    fig = go.Figure()
+    
+    colors = {'Lente': '#10b981', 'Zomer': '#facc15', 'Herfst': '#fb923c', 'Winter': '#00e5ff'}
+    
+    for s in seasons:
+        if stats.loc[s, 'Afstand_km'] == 0: continue
+        
+        r_vals = [
+            (stats.loc[s, 'Afstand_km'] / max_dist) * 100,
+            (stats.loc[s, 'Beweegtijd_sec'] / max_tijd) * 100,
+            (stats.loc[s, 'Hoogte'] / max_hoogte) * 100
+        ]
+        r_vals.append(r_vals[0]) # Sluit de polygoon
+        
+        real_vals = [
+            f"{stats.loc[s, 'Afstand_km']:,.0f} km",
+            f"{stats.loc[s, 'Beweegtijd_sec']/3600:.1f} u",
+            f"{stats.loc[s, 'Hoogte']:,.0f} m+"
+        ]
+        real_vals.append(real_vals[0])
+        
+        theta = ['Afstand', 'Tijd', 'Hoogtemeters', 'Afstand']
+        
+        fig.add_trace(go.Scatterpolar(
+            r=r_vals, theta=theta, fill='toself', name=s, 
+            line_color=colors[s], opacity=0.6,
+            hoverinfo='text', text=real_vals
+        ))
+        
+    fig.update_layout(
+        title='🍂 Seizoens-profiel', template='plotly_dark',
+        polar=dict(radialaxis=dict(visible=False, range=[0, 100]), bgcolor='rgba(0,0,0,0)'),
+        margin=dict(t=50,b=30,l=30,r=30), height=300, 
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#94a3b8')
+    )
+    return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
+
 def create_monthly_charts(df_cur, df_prev, year):
     months = ['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec']
     def get_m(df, cats): return df[df['Categorie'].isin(cats)].groupby(df['Datum'].dt.month)['Afstand_km'].sum().reindex(range(1,13), fill_value=0)
@@ -270,7 +428,7 @@ def create_heatmap(df_yr):
     pivot = grouped.pivot(index='Uur', columns='Weekdag', values='Aantal').fillna(0).reindex(columns=days_order)
     if pivot.empty: return ""
     fig = go.Figure(data=go.Heatmap(z=pivot.values, x=[nl_days[d] for d in pivot.columns], y=pivot.index, colorscale=[[0, 'rgba(255,255,255,0.03)'], [1, COLORS['bike_out']]], showscale=False))
-    fig.update_layout(title='📅 Hittekaart (Wanneer sport je?)', template='plotly_dark', margin=dict(t=50,b=40,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', range=[6, 23], fixedrange=True), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
+    fig.update_layout(title='📅 Uur-Hittekaart', template='plotly_dark', margin=dict(t=50,b=40,l=10,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(title='', range=[6, 23], fixedrange=True), xaxis=dict(fixedrange=True), font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
 def create_strength_freq_chart(df_yr):
@@ -303,10 +461,10 @@ def create_zone_pie(df_yr):
     fig.update_layout(title='❤️ Hartslagzones', template='plotly_dark', margin=dict(t=50,b=40,l=0,r=10), height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'))
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
-def generate_kpi(lbl, val, icon, diff_html, unit=""):
+def generate_kpi(lbl, val, icon, diff_html, unit="", extra_html=""):
     val_html = f"{val}"
     if unit: val_html += f' <span style="font-size: 14px; color: var(--text_light); font-weight: 600;">{unit}</span>'
-    return f"""<div class="kpi-card"><div style="display:flex;justify-content:space-between;"><div class="lbl" style="font-size:12px;color:var(--text_light);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">{lbl}</div><div class="icon" style="font-size:18px;">{icon}</div></div><div class="val" style="font-size:26px;font-weight:800;color:var(--text);margin:8px 0; font-variant-numeric: tabular-nums;">{val_html}</div><div style="font-size:13px;">{diff_html}</div></div>"""
+    return f"""<div class="kpi-card"><div style="display:flex;justify-content:space-between;"><div class="lbl" style="font-size:12px;color:var(--text_light);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">{lbl}</div><div class="icon" style="font-size:18px;">{icon}</div></div><div class="val" style="font-size:26px;font-weight:800;color:var(--text);margin:8px 0 2px 0; font-variant-numeric: tabular-nums;">{val_html}</div><div style="font-size:13px;">{diff_html}</div>{extra_html}</div>"""
 
 def generate_sport_cards(df_yr, df_prev_comp):
     html = '<div class="sport-grid">'
@@ -435,7 +593,7 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V73.0 (Met Bom Doelen!)...")
+    print("🚀 Start V74.0 (Virtuele Reis, Bicky Calculator, Kalender & Radar)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -466,20 +624,25 @@ def genereer_dashboard():
             
             streaks_html = generate_streaks_box(df) if yr == datetime.now().year else ""
             goals_html = generate_bomb_countdowns(yr)
+            journey_html = generate_virtual_journey(df_yr) if yr == datetime.now().year else ""
             
             cal_yr = df_yr['Calorieën'].sum() if 'Calorieën' in df_yr.columns else 0
             cal_prev = df_prev_comp['Calorieën'].sum() if 'Calorieën' in df_prev_comp.columns and not df_prev_comp.empty else 0
+            bickys = int(cal_yr / BICKY_KCAL) if cal_yr > 0 else 0
+            bicky_html = f"<div style='font-size:11px; color:var(--gold); margin-top:6px; font-weight:700;'>🍔 Gelijk aan {bickys} Bicky Cheese's!</div>"
             
             sects += f"""<div id="v-{yr}" class="tab-content" style="display:{"block" if yr == datetime.now().year else "none"}">
+                {journey_html}
                 <div class="kpi-grid">
                     {generate_kpi("Sessies", len(df_yr), "👟", format_diff_html(len(df_yr), len(df_prev_comp)))}
                     {generate_kpi("Afstand", f"{df_yr['Afstand_km'].sum():,.0f}", "📏", format_diff_html(df_yr['Afstand_km'].sum(), df_prev_comp['Afstand_km'].sum(), "km"), unit="km")}
                     {generate_kpi("Hoogte", f"{df_yr['Hoogte'].sum():,.0f}", "🏔️", format_diff_html(df_yr['Hoogte'].sum(), df_prev_comp['Hoogte'].sum(), "m"), unit="m+")}
                     {generate_kpi("Tijd", format_time(df_yr['Beweegtijd_sec'].sum()), "⏱️", format_diff_html(df_yr['Beweegtijd_sec'].sum()/3600, df_prev_comp['Beweegtijd_sec'].sum()/3600, "u"))}
-                    {generate_kpi("Energie", f"{cal_yr:,.0f}", "🔥", format_diff_html(cal_yr, cal_prev, "kcal"), unit="kcal")}
+                    {generate_kpi("Energie", f"{cal_yr:,.0f}", "🔥", format_diff_html(cal_yr, cal_prev, "kcal"), unit="kcal", extra_html=bicky_html)}
                 </div>
                 {streaks_html}
                 {goals_html}
+                {create_github_calendar(df_yr)}
                 {create_ytd_chart(df, yr)}
                 <h3 class="sec-sub">Per Sport</h3>{generate_sport_cards(df_yr, df_prev_comp)}
                 <h3 class="sec-sub">Materiaal {yr}</h3>{generate_yearly_gear(df_yr, df)}
@@ -487,6 +650,7 @@ def genereer_dashboard():
                 <h3 class="sec-sub">Diepte-analyse</h3>
                 <div class="chart-grid">{create_scatter_plot(df_yr)}{create_zone_pie(df_yr)}</div>
                 <div class="chart-grid">{create_heatmap(df_yr)}{create_strength_freq_chart(df_yr)}</div>
+                <div class="chart-box full-width" style="margin-top:12px;">{create_season_radar(df_yr)}</div>
                 <h3 class="sec-sub">Records {yr}</h3>{generate_hall_of_fame(df_yr)}
                 <h3 class="sec-sub">Logboek</h3>{generate_logbook(df_yr)}
             </div>"""
@@ -508,7 +672,7 @@ def genereer_dashboard():
         
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-        :root{{--primary:#00e5ff;--bg:#0b0914;--card:#1e1b4b;--text:#f8fafc;--text_light:#94a3b8;}}
+        :root{{--primary:#00e5ff;--bg:#0b0914;--card:#1e1b4b;--text:#f8fafc;--text_light:#94a3b8;--gold:#facc15;}}
         * {{ box-sizing: border-box; }}
         body{{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px 0;}}
         .container{{width:96%; max-width:1400px; margin:0 auto;}}
@@ -576,7 +740,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V73.0) klaar: Doelen met bom-lont toegevoegd!")
+        print("✅ Dashboard (V74.0) klaar: Gamificatie features met succes toegevoegd!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
