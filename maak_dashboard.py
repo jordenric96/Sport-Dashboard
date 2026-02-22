@@ -368,13 +368,14 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V72.0 (Hoogtemeters toegevoegd)...")
+    print("🚀 Start V72.1 (Hoogtemeters kolomnaam gefixt)...")
     try:
         df = pd.read_csv('activities.csv')
+        # HIER ZAT DE FOUT: 'Totaal stijgen' is vervangen door 'Hoogtemeters'
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
               'Beweegtijd':'Beweegtijd_sec', 'Afstand':'Afstand_km', 'Gemiddelde hartslag':'Hartslag', 
               'Gemiddelde snelheid':'Gem_Snelheid', 'Uitrusting voor activiteit':'Gear', 
-              'Calorieën':'Calorieën', 'Totaal stijgen':'Hoogte'}
+              'Calorieën':'Calorieën', 'Hoogtemeters':'Hoogte'}
         
         df = df.rename(columns={k:v for k,v in nm.items() if k in df.columns})
         
@@ -504,7 +505,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V72.0) klaar: Volledig script inclusief Hoogtemeters gegenereerd!")
+        print("✅ Dashboard (V72.1) klaar: Data ingeladen via de kolom 'Hoogtemeters'!")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
