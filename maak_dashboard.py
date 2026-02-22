@@ -118,10 +118,9 @@ def create_ytd_chart(df, current_year):
     fig.update_layout(
         title='📈 Aantal km\'s (Cumulatief)', 
         template='plotly_dark', 
-        margin=dict(t=50, b=40, l=0, r=0), # Marges geminimaliseerd
+        margin=dict(t=50, b=40, l=0, r=0), 
         height=380, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(title="", showgrid=False, fixedrange=True), 
-        # Labels naar binnen verplaatst voor meer breedte
         yaxis=dict(title="", showgrid=True, gridcolor='rgba(255,255,255,0.05)', fixedrange=True, side="right", ticklabelposition="inside", tickfont=dict(color=COLORS['text_light'])), 
         legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"), 
         font=dict(color='#94a3b8')
@@ -247,10 +246,23 @@ def generate_bomb_countdowns(year):
 def generate_virtual_journey(df_yr):
     dist = df_yr[df_yr['Categorie'].isin(['Fiets', 'Zwift', 'Hardlopen', 'Wandelen'])]['Afstand_km'].sum()
     
+    # Nieuwe lijst vanaf Gooik tot 6000 km
     milestones = [
-        ("🇧🇪 Brussel", 0), ("🇫🇷 Parijs", 300), ("🏔️ Mont Ventoux", 1000), 
-        ("🇮🇹 Rome", 1500), ("🇬🇷 Athene", 2500), ("🇳🇴 Noordkaap", 4000), ("🌍 De Wereld Rond", 10000)
+        ("🇧🇪 Gooik", 0), 
+        ("🇫🇷 Parijs", 250), 
+        ("🇨🇭 Genève", 800), 
+        ("🏔️ Mont Ventoux", 1000), 
+        ("🇮🇹 Rome", 1500), 
+        ("🇵🇹 Lissabon", 2200), 
+        ("🇮🇨 Tenerife", 3000), 
+        ("🇳🇴 Noordkaap", 4000), 
+        ("🇦🇪 Dubai", 5100), 
+        ("🇺🇸 New York", 6000)
     ]
+    
+    # Bepaal welke plaatsen we al voorbij zijn
+    passed = [m[0] for m in milestones if dist >= m[1]]
+    passed_str = ", ".join(passed) if passed else "Nog nergens"
     
     current_m = milestones[0]
     next_m = milestones[1]
@@ -271,6 +283,11 @@ def generate_virtual_journey(df_yr):
     html = f"""
     <div class="streaks-section" style="margin-bottom:20px; background:linear-gradient(145deg, #151236, #0b0914);">
         <h3 class="box-title">🌍 DE VIRTUELE REIS</h3>
+        
+        <div style="font-size:11px; color:var(--text_light); margin-bottom:12px; line-height:1.4;">
+            <strong>Gepasseerd:</strong> <span style="color:var(--primary);">{passed_str}</span>
+        </div>
+        
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
             <span style="font-size:13px; font-weight:600; color:var(--text);">{current_m[0]}</span>
             <span style="font-size:13px; font-weight:600; color:var(--text_light);">{next_m[0]}</span>
@@ -279,7 +296,7 @@ def generate_virtual_journey(df_yr):
             <div style="position:absolute; left:0; top:0; height:100%; width:{pct}%; background:linear-gradient(90deg, var(--primary), #ff007f); border-radius:6px;"></div>
         </div>
         <div style="text-align:center; font-size:11px; color:var(--text_light); margin-top:8px;">
-            Je bent voorbij {current_m[0]}! Nog <strong>{(next_m[1] - dist):,.0f} km</strong> tot {next_m[0]}.
+            Huidige score: <strong>{dist:,.0f} km</strong>. Nog <strong>{(next_m[1] - dist):,.0f} km</strong> tot {next_m[0]}.
         </div>
     </div>
     """
@@ -298,11 +315,13 @@ def create_season_radar(df_yr):
     df_s['Seizoen'] = df_s['Datum'].dt.month.apply(get_season)
     
     seasons = ['Lente', 'Zomer', 'Herfst', 'Winter']
-    stats = df_s.groupby('Seizoen').agg({'Afstand_km':'sum', 'Beweegtijd_sec':'sum', 'Hoogte':'sum'}).reindex(seasons).fillna(0)
+    # Aantal sessies meenemen
+    stats = df_s.groupby('Seizoen').agg({'Afstand_km':'sum', 'Beweegtijd_sec':'sum', 'Hoogte':'sum', 'Datum':'count'}).rename(columns={'Datum':'Sessies'}).reindex(seasons).fillna(0)
     
     max_dist = stats['Afstand_km'].max() or 1
     max_tijd = stats['Beweegtijd_sec'].max() or 1
     max_hoogte = stats['Hoogte'].max() or 1
+    max_sessies = stats['Sessies'].max() or 1
     
     fig = go.Figure()
     
@@ -310,32 +329,36 @@ def create_season_radar(df_yr):
     colors = {'Lente': '#39ff14', 'Zomer': '#ffff00', 'Herfst': '#ff5f1f', 'Winter': '#00ffff'}
     
     for s in seasons:
-        if stats.loc[s, 'Afstand_km'] == 0: continue
+        if stats.loc[s, 'Sessies'] == 0: continue
         
+        # We plotten nu op 4 assen (Afstand, Tijd, Hoogte, Sessies)
         r_vals = [
             (stats.loc[s, 'Afstand_km'] / max_dist) * 100,
             (stats.loc[s, 'Beweegtijd_sec'] / max_tijd) * 100,
-            (stats.loc[s, 'Hoogte'] / max_hoogte) * 100
+            (stats.loc[s, 'Hoogte'] / max_hoogte) * 100,
+            (stats.loc[s, 'Sessies'] / max_sessies) * 100
         ]
         r_vals.append(r_vals[0]) 
         
         real_vals = [
             f"{stats.loc[s, 'Afstand_km']:,.0f} km",
             f"{stats.loc[s, 'Beweegtijd_sec']/3600:.1f} u",
-            f"{stats.loc[s, 'Hoogte']:,.0f} m+"
+            f"{stats.loc[s, 'Hoogte']:,.0f} m+",
+            f"{int(stats.loc[s, 'Sessies'])} sessies"
         ]
         real_vals.append(real_vals[0])
         
-        theta = ['Afstand', 'Tijd', 'Hoogtemeters', 'Afstand']
+        theta = ['Afstand', 'Tijd', 'Hoogtemeters', 'Sessies', 'Afstand']
         
         fig.add_trace(go.Scatterpolar(
             r=r_vals, theta=theta, 
-            mode='lines+markers', # Alleen lijnen en markers
+            mode='lines+markers',
             name=s, 
-            line=dict(color=colors[s], width=3), # Dikkere neon lijnen
+            line=dict(color=colors[s], width=3),
             marker=dict(size=6, color=colors[s]),
             opacity=0.9,
-            hoverinfo='text', text=real_vals
+            hoverinfo='text', text=real_vals,
+            showlegend=True # Geforceerd aanzetten van legende
         ))
         
     fig.update_layout(
@@ -345,9 +368,10 @@ def create_season_radar(df_yr):
             bgcolor='rgba(0,0,0,0)',
             angularaxis=dict(linecolor='rgba(255,255,255,0.1)', gridcolor='rgba(255,255,255,0.1)')
         ),
-        margin=dict(t=50,b=30,l=30,r=30), height=300, 
+        margin=dict(t=50,b=60,l=30,r=30), height=320, # Extra marge onderaan voor legende
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#94a3b8')
+        font=dict(color='#94a3b8'),
+        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center") # Legende onderaan gecentreerd
     )
     return f'<div class="chart-box">{fig.to_html(full_html=False, include_plotlyjs="cdn", config=PLOT_CONFIG)}</div>'
 
@@ -541,7 +565,7 @@ def generate_logbook(df):
 
 # --- MAIN ---
 def genereer_dashboard():
-    print("🚀 Start V75.0 (Kalender weg, YTD breder, Neon Radar)...")
+    print("🚀 Start V76.0 (Virtuele Reis vanuit Gooik, Radar met Sessies & Legende)...")
     try:
         df = pd.read_csv('activities.csv')
         nm = {'Datum van activiteit':'Datum', 'Naam activiteit':'Naam', 'Activiteitstype':'Activiteitstype', 
@@ -687,7 +711,7 @@ def genereer_dashboard():
         </script></body></html>"""
         
         with open('dashboard.html', 'w', encoding='utf-8') as f: f.write(html)
-        print("✅ Dashboard (V75.0) klaar: Kalender weg, YTD breder, Neon Radar.")
+        print("✅ Dashboard (V76.0) klaar: Jouw reis start nu vanuit Gooik! Radar is een vierkant met legende geworden.")
     except Exception as e: print(f"❌ Fout: {e}")
 
 if __name__ == "__main__": genereer_dashboard()
