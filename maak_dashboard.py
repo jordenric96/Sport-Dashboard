@@ -190,7 +190,7 @@ def generate_bomb_countdowns(year):
     
     goals = [
         {"date": "03-28", "type": "Fietsen", "name": "Pajotse Parel"},
-        {"date": "05-09", "type": "Wandelen", "name": "Coast Walk"},
+        {"date": "05-01", "type": "Fietsen", "name": "Duvel on tour"},
         {"date": "06-06", "type": "Fietsen", "name": "Rit Gooik + BBQ"},
         {"date": "07-11", "type": "Fietsen", "name": "Vlaamse Ardennen"},
         {"date": "08-08", "type": "Fietsen", "name": "Roubaix"}
